@@ -84,32 +84,57 @@ func (linter *Linter) validateDir(index config.RuleIndex, path string, validate 
 		return indexDir, dir, nil
 	}
 
-	if _, exists := rules[dir]; !exists {
+	ruleKeys := []string{}
+	if _, exists := rules[dir]; exists {
+		ruleKeys = append(ruleKeys, dir)
+	}
+
+	if _, exists := rules[basename]; exists {
+		ruleKeys = append(ruleKeys, basename)
+	}
+
+	if len(ruleKeys) == 0 {
 		return indexDir, dir, nil
 	}
 
-	for _, ruleDir := range rules[dir] {
-		g.Go(func() error {
-			if ruleDir.GetName() == "exists" && pathDir != indexDir {
-				return nil
-			}
+	for _, ruleKeyName := range ruleKeys {
+		for _, ruleDir := range rules[ruleKeyName] {
+			g.Go(func() error {
+				if ruleDir.GetName() == "exists" {
+					switch ruleKeyName {
+					case dir:
+						if pathDir != indexDir {
+							return nil
+						}
+					default:
+						parentDir := filepath.ToSlash(filepath.Dir(pathDir))
+						if parentDir == "." {
+							parentDir = ""
+						}
 
-			valid, err := ruleDir.Validate(basename, pathDir, ruleDir.GetName() != "exists")
-			if err != nil {
-				return err
-			}
-
-			if !ruleDir.GetExclusive() {
-				rulesMutex.Lock()
-				rulesNonExclusiveCount++
-				if !valid {
-					rulesNonExclusiveError++
+						if parentDir != indexDir {
+							return nil
+						}
+					}
 				}
-				rulesMutex.Unlock()
-			}
 
-			return nil
-		})
+				valid, err := ruleDir.Validate(basename, pathDir, ruleDir.GetName() != "exists")
+				if err != nil {
+					return err
+				}
+
+				if !ruleDir.GetExclusive() {
+					rulesMutex.Lock()
+					rulesNonExclusiveCount++
+					if !valid {
+						rulesNonExclusiveError++
+					}
+					rulesMutex.Unlock()
+				}
+
+				return nil
+			})
+		}
 	}
 
 	if err := g.Wait(); err != nil {
@@ -120,14 +145,24 @@ func (linter *Linter) validateDir(index config.RuleIndex, path string, validate 
 		return indexDir, dir, nil
 	}
 
+	ruleKey := dir
+	if len(ruleKeys) == 1 && ruleKeys[0] == basename {
+		ruleKey = basename
+	}
+
+	relevantRules := rules[ruleKey]
+	if len(ruleKeys) == 2 {
+		relevantRules = append(rules[dir], rules[basename]...)
+	}
+
 	linter.AddError(&rule.Error{
 		Path:    path,
-		Ext:     dir,
-		Rules:   rules[dir],
+		Ext:     ruleKey,
+		Rules:   relevantRules,
 		RWMutex: new(sync.RWMutex),
 	})
 
-	return indexDir, dir, nil
+	return indexDir, ruleKey, nil
 }
 
 func (linter *Linter) validateFile(index config.RuleIndex, path string, validate bool) (string, string, error) {
@@ -138,66 +173,77 @@ func (linter *Linter) validateFile(index config.RuleIndex, path string, validate
 	var rulesNonExclusiveError int8
 	rulesMutex := new(sync.Mutex)
 
-	exts := strings.Split(filepath.Base(path), extSep)[1:]
+	basename := filepath.Base(path)
+	exts := strings.Split(basename, extSep)[1:]
 	indexDir, rules := linter.config.GetConfig(index, path)
 
 	var pathDir string
-	pathDir = filepath.ToSlash(filepath.Dir(path)); // compatibility with windows
+	pathDir = filepath.ToSlash(filepath.Dir(path)) // compatibility with windows
 	if pathDir == "." {
 		pathDir = ""
 	}
 
-	n := len(exts)
-	maxCombinations := int(math.Pow(2, float64(n))) // 2^N combinations
+	withoutExt := basename
+	if len(exts) > 0 {
+		withoutExt = strings.TrimSuffix(basename, fmt.Sprintf("%s%s", extSep, strings.Join(exts, extSep)))
+	}
 
-	var withoutExt string
-	for i := 0; i < maxCombinations; i++ {
-		combination := make([]string, n)
-		for j := 0; j < n; j++ {
-			if i&(1<<(n-1-j)) == 0 { // from left to right; right to left: i&(1<<j)
-				combination[j] = exts[j] // Keep original
-			} else {
-				combination[j] = "*" // Replace with "*"
-			}
-		}
+	matchedRule := false
+	if _, ok := rules[basename]; ok {
+		ext = basename
+		matchedRule = true
+	} else {
+		n := len(exts)
+		maxCombinations := int(math.Pow(2, float64(n))) // 2^N combinations
 
-		ext = fmt.Sprintf("%s%s", extSep, strings.Join(combination, extSep))
-
-		if i == 0 {
-			withoutExt = strings.TrimSuffix(filepath.Base(path), ext)
-		}
-
-		if _, ok := rules[ext]; ok {
-			for _, ruleFile := range rules[ext] {
-				if !validate && ruleFile.GetName() != "exists" {
-					continue
+		for i := 0; i < maxCombinations; i++ {
+			combination := make([]string, n)
+			for j := 0; j < n; j++ {
+				if i&(1<<(n-1-j)) == 0 { // from left to right; right to left: i&(1<<j)
+					combination[j] = exts[j] // Keep original
+				} else {
+					combination[j] = "*" // Replace with "*"
 				}
-
-				g.Go(func() error {
-					if ruleFile.GetName() == "exists" && pathDir != indexDir {
-						return nil
-					}
-
-					valid, err := ruleFile.Validate(withoutExt, pathDir, ruleFile.GetName() != "exists")
-					if err != nil {
-						return err
-					}
-
-					if !ruleFile.GetExclusive() {
-						rulesMutex.Lock()
-						rulesNonExclusiveCount++
-						if !valid {
-							rulesNonExclusiveError++
-						}
-						rulesMutex.Unlock()
-					}
-
-					return nil
-				})
 			}
 
-			break
+			ext = fmt.Sprintf("%s%s", extSep, strings.Join(combination, extSep))
+			if _, ok := rules[ext]; ok {
+				matchedRule = true
+				break
+			}
 		}
+	}
+
+	if !matchedRule {
+		return indexDir, ext, nil
+	}
+
+	for _, ruleFile := range rules[ext] {
+		if !validate && ruleFile.GetName() != "exists" {
+			continue
+		}
+
+		g.Go(func() error {
+			if ruleFile.GetName() == "exists" && pathDir != indexDir {
+				return nil
+			}
+
+			valid, err := ruleFile.Validate(withoutExt, pathDir, ruleFile.GetName() != "exists")
+			if err != nil {
+				return err
+			}
+
+			if !ruleFile.GetExclusive() {
+				rulesMutex.Lock()
+				rulesNonExclusiveCount++
+				if !valid {
+					rulesNonExclusiveError++
+				}
+				rulesMutex.Unlock()
+			}
+
+			return nil
+		})
 	}
 
 	if err := g.Wait(); err != nil {
@@ -237,8 +283,8 @@ func (linter *Linter) Run(filesystem fs.FS, paths map[string]struct{}, debug boo
 	}
 
 	// glob ignore index
-	ignoreIndex := linter.config.GetIgnoreIndex()
-	if err = glob.IgnoreIndex(filesystem, ignoreIndex, true); err != nil {
+	ignoreIndex, err := linter.config.GetIgnoreIndex()
+	if err != nil {
 		return err
 	}
 
@@ -269,8 +315,11 @@ func (linter *Linter) Run(filesystem fs.FS, paths map[string]struct{}, debug boo
 		}
 
 		fmt.Printf("-----------------------------\nignore index\n-----------------------------\n")
-		for path := range ignoreIndex {
+		for path := range ignoreIndex.Exact {
 			fmt.Printf("%s\n", path)
+		}
+		for _, pattern := range ignoreIndex.Glob {
+			fmt.Printf("%s\n", pattern)
 		}
 
 		fmt.Printf("-----------------------------\nlint\n-----------------------------\n")
