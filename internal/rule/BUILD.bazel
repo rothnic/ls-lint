@@ -6,6 +6,7 @@ go_library(
         "camelcase.go",
         "error.go",
         "exists.go",
+        "feedback.go",
         "kebabcase.go",
         "lowercase.go",
         "pascalcase.go",
