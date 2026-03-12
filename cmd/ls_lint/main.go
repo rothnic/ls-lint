@@ -173,7 +173,7 @@ func main() {
 
 func getRuleMessages(ruleErr *rule.Error, contextMessage string) []string {
 	rules := ruleErr.GetRules()
-	ruleMessages := make([]string, 0, len(rules)+1)
+	ruleMessages := make([]string, 0, len(rules))
 	for _, errRule := range rules {
 		if !ruleErr.IsDir() && errRule.GetName() == "exists" {
 			continue
