@@ -29,6 +29,18 @@ type Content struct {
 	*sync.RWMutex
 }
 
+type PreparedContent struct {
+	lines          []string
+	lineCount      int
+	maxLineLength  int
+	hasFrontMatter bool
+}
+
+type PreparedContentOptions struct {
+	MaxLineLength bool
+	FrontMatter   bool
+}
+
 func (rule *Content) Init() Rule {
 	rule.name = "content"
 	rule.exclusive = false
@@ -132,7 +144,13 @@ func (rule *Content) Validate(_ string, _ string, _ bool) (bool, error) {
 }
 
 func (rule *Content) ValidateContent(content []byte, _ string) (bool, error) {
-	lines := contentLines(content)
+	return rule.ValidatePreparedContent(NewPreparedContent(content, rule.GetPreparedContentOptions()), "")
+}
+
+func (rule *Content) ValidatePreparedContent(content *PreparedContent, _ string) (bool, error) {
+	if content == nil {
+		content = &PreparedContent{}
+	}
 
 	rule.Lock()
 	defer rule.Unlock()
@@ -141,30 +159,21 @@ func (rule *Content) ValidateContent(content []byte, _ string) (bool, error) {
 
 	switch rule.kind {
 	case contentRuleMaxLines:
-		count := len(lines)
-		if count <= rule.max {
+		if content.lineCount <= rule.max {
 			return true, nil
 		}
 
-		rule.result = fmt.Sprintf(" (found %d)", count)
+		rule.result = fmt.Sprintf(" (found %d)", content.lineCount)
 		return false, nil
 	case contentRuleMaxLineLength:
-		maxLength := 0
-		for _, line := range lines {
-			lineLength := utf8.RuneCountInString(line)
-			if lineLength > maxLength {
-				maxLength = lineLength
-			}
-		}
-
-		if maxLength <= rule.max {
+		if content.maxLineLength <= rule.max {
 			return true, nil
 		}
 
-		rule.result = fmt.Sprintf(" (found %d)", maxLength)
+		rule.result = fmt.Sprintf(" (found %d)", content.maxLineLength)
 		return false, nil
 	case contentRuleHeading:
-		for _, line := range lines {
+		for _, line := range content.lines {
 			if rule.regex.MatchString(line) {
 				return true, nil
 			}
@@ -172,7 +181,7 @@ func (rule *Content) ValidateContent(content []byte, _ string) (bool, error) {
 
 		return false, nil
 	case contentRuleFrontMatter:
-		return hasFrontMatter(lines), nil
+		return content.hasFrontMatter, nil
 	default:
 		return false, fmt.Errorf("unknown content rule %s", rule.kind)
 	}
@@ -221,12 +230,48 @@ func contentLines(content []byte) []string {
 	return lines
 }
 
+func NewPreparedContent(content []byte, options PreparedContentOptions) *PreparedContent {
+	lines := contentLines(content)
+
+	prepared := &PreparedContent{
+		lines:          lines,
+		lineCount:      len(lines),
+		maxLineLength:  0,
+		hasFrontMatter: false,
+	}
+
+	if options.MaxLineLength {
+		for _, line := range lines {
+			lineLength := utf8.RuneCountInString(line)
+			if lineLength > prepared.maxLineLength {
+				prepared.maxLineLength = lineLength
+			}
+		}
+	}
+
+	if options.FrontMatter {
+		prepared.hasFrontMatter = hasFrontMatter(lines)
+	}
+
+	return prepared
+}
+
+func (rule *Content) GetPreparedContentOptions() PreparedContentOptions {
+	rule.RLock()
+	defer rule.RUnlock()
+
+	return PreparedContentOptions{
+		MaxLineLength: rule.kind == contentRuleMaxLineLength,
+		FrontMatter:   rule.kind == contentRuleFrontMatter,
+	}
+}
+
 func hasFrontMatter(lines []string) bool {
-	if len(lines) < 2 || lines[0] != "---" {
+	if len(lines) < 3 || lines[0] != "---" {
 		return false
 	}
 
-	for _, line := range lines[1:] {
+	for _, line := range lines[2:] {
 		if line == "---" || line == "..." {
 			return true
 		}

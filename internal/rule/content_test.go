@@ -56,6 +56,12 @@ func TestContent(t *testing.T) {
 			expected:    false,
 		},
 		{
+			description: "front matter requires content between delimiters",
+			params:      []string{"front-matter:required"},
+			content:     "---\n---\n",
+			expected:    false,
+		},
+		{
 			description: "unknown content subrule",
 			params:      []string{"unknown:1"},
 			expectedErr: "unknown content rule unknown",
@@ -87,6 +93,62 @@ func TestContent(t *testing.T) {
 		}
 		if valid != test.expected {
 			t.Fatalf("%s: expected %t, got %t", test.description, test.expected, valid)
+		}
+	}
+}
+
+func TestNewPreparedContent(t *testing.T) {
+	prepared := NewPreparedContent([]byte("\ufeff---\r\ntitle: Example\r\n---\r\n## Overview\r\nåäö\r\n"), PreparedContentOptions{
+		MaxLineLength: true,
+		FrontMatter:   true,
+	})
+
+	if prepared.lineCount != 5 {
+		t.Fatalf("expected 5 lines, got %d", prepared.lineCount)
+	}
+	if prepared.maxLineLength != len("title: Example") {
+		t.Fatalf("expected max line length %d, got %d", len("title: Example"), prepared.maxLineLength)
+	}
+	if !prepared.hasFrontMatter {
+		t.Fatalf("expected prepared content to detect front matter")
+	}
+	expectedLines := []string{"---", "title: Example", "---", "## Overview", "åäö"}
+	if !reflect.DeepEqual(prepared.lines, expectedLines) {
+		t.Fatalf("expected lines %v, got %v", expectedLines, prepared.lines)
+	}
+}
+
+func TestContent_GetPreparedContentOptions(t *testing.T) {
+	tests := []struct {
+		description string
+		params      string
+		expected    PreparedContentOptions
+	}{
+		{
+			description: "max lines only needs line metadata",
+			params:      "max-lines:10",
+			expected:    PreparedContentOptions{},
+		},
+		{
+			description: "max line length requests max length",
+			params:      "max-line-length:10",
+			expected:    PreparedContentOptions{MaxLineLength: true},
+		},
+		{
+			description: "front matter requests front matter detection",
+			params:      "front-matter:required",
+			expected:    PreparedContentOptions{FrontMatter: true},
+		},
+	}
+
+	for _, test := range tests {
+		contentRule := new(Content)
+		contentRule.Init()
+		if err := contentRule.SetParameters([]string{test.params}); err != nil {
+			t.Fatalf("%s: expected no error, got %v", test.description, err)
+		}
+		if !reflect.DeepEqual(contentRule.GetPreparedContentOptions(), test.expected) {
+			t.Fatalf("%s: expected %+v, got %+v", test.description, test.expected, contentRule.GetPreparedContentOptions())
 		}
 	}
 }

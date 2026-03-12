@@ -54,4 +54,6 @@ type Rule interface {
 type ContentRule interface {
 	Rule
 	ValidateContent(content []byte, path string) (bool, error)
+	ValidatePreparedContent(content *PreparedContent, path string) (bool, error)
+	GetPreparedContentOptions() PreparedContentOptions
 }

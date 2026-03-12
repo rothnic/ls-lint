@@ -267,9 +267,17 @@ func (linter *Linter) validateFile(filesystem fs.FS, index config.RuleIndex, pat
 			return indexDir, ext, err
 		}
 
+		preparedContentOptions := rule.PreparedContentOptions{}
+		for _, contentRule := range contentRules {
+			ruleOptions := contentRule.GetPreparedContentOptions()
+			preparedContentOptions.MaxLineLength = preparedContentOptions.MaxLineLength || ruleOptions.MaxLineLength
+			preparedContentOptions.FrontMatter = preparedContentOptions.FrontMatter || ruleOptions.FrontMatter
+		}
+
+		preparedContent := rule.NewPreparedContent(fileContent, preparedContentOptions)
 		failedContentRules := make([]rule.Rule, 0)
 		for _, contentRule := range contentRules {
-			valid, err := contentRule.ValidateContent(fileContent, path)
+			valid, err := contentRule.ValidatePreparedContent(preparedContent, path)
 			if err != nil {
 				return indexDir, ext, err
 			}
