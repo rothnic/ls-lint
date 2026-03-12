@@ -3,7 +3,6 @@ package config
 import (
 	"errors"
 	"reflect"
-	"sync"
 	"testing"
 
 	"github.com/loeffel-io/ls-lint/v2/internal/rule"
@@ -118,72 +117,43 @@ func TestGetIgnoreIndex(t *testing.T) {
 	}
 }
 
-func TestApplyContext(t *testing.T) {
+func TestGetContextMessage(t *testing.T) {
 	tests := []struct {
 		description     string
 		config          *Config
 		context         string
-		expectedApplied bool
-		expectedLs      Ls
-		expectedIgnore  []string
+		expectedMessage string
+		expectedFound   bool
 	}{
 		{
-			description: "applies selected context overrides",
-			config: &Config{
-				Ls: Ls{
-					".png": "snake_case => Must use snake_case before merging",
-				},
-				Ignore: []string{"node_modules"},
-				Contexts: map[string]Context{
-					"pre-commit": {
-						Ls: Ls{
-							".png": "snake_case => Prefer snake_case while iterating locally",
-							".md":  "kebab-case => Markdown files should stay kebab-case",
-						},
-						Ignore: []string{"tmp"},
-					},
-				},
-				RWMutex: new(sync.RWMutex),
-			},
+			description: "returns selected context message",
+			config: func() *Config {
+				config := NewConfig(nil, nil)
+				config.Contexts = map[string]string{
+					"pre-commit": "Pre-commit failures are warnings about project shape and naming requirements.",
+				}
+
+				return config
+			}(),
 			context:         "pre-commit",
-			expectedApplied: true,
-			expectedLs: Ls{
-				".png": "snake_case => Prefer snake_case while iterating locally",
-				".md":  "kebab-case => Markdown files should stay kebab-case",
-			},
-			expectedIgnore: []string{"node_modules", "tmp"},
+			expectedMessage: "Pre-commit failures are warnings about project shape and naming requirements.",
+			expectedFound:   true,
 		},
 		{
-			description: "returns false when context is missing",
-			config: &Config{
-				Ls: Ls{
-					".png": "snake_case",
-				},
-				Ignore:  []string{"node_modules"},
-				RWMutex: new(sync.RWMutex),
-			},
-			context:         "pre-push",
-			expectedApplied: false,
-			expectedLs: Ls{
-				".png": "snake_case",
-			},
-			expectedIgnore: []string{"node_modules"},
+			description:   "returns false when context is missing",
+			config:        NewConfig(Ls{".png": "snake_case"}, nil),
+			context:       "pre-push",
+			expectedFound: false,
 		},
 	}
 
 	for _, test := range tests {
-		applied, err := test.config.ApplyContext(test.context)
-		if err != nil {
-			t.Fatalf("%s: expected no error, got %v", test.description, err)
+		message, found := test.config.GetContextMessage(test.context)
+		if found != test.expectedFound {
+			t.Fatalf("%s: expected found=%t, got %t", test.description, test.expectedFound, found)
 		}
-		if applied != test.expectedApplied {
-			t.Fatalf("%s: expected applied=%t, got %t", test.description, test.expectedApplied, applied)
-		}
-		if !reflect.DeepEqual(test.config.GetLs(), test.expectedLs) {
-			t.Fatalf("%s: expected ls %+v, got %+v", test.description, test.expectedLs, test.config.GetLs())
-		}
-		if !reflect.DeepEqual(test.config.GetIgnore(), test.expectedIgnore) {
-			t.Fatalf("%s: expected ignore %+v, got %+v", test.description, test.expectedIgnore, test.config.GetIgnore())
+		if message != test.expectedMessage {
+			t.Fatalf("%s: expected message %q, got %q", test.description, test.expectedMessage, message)
 		}
 	}
 }

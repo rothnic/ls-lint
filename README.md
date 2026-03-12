@@ -175,7 +175,7 @@ This feedback is attached to the individual rule, so existing rule syntax keeps
 working unchanged and only the failing rule's message is replaced.
 
 If you want different guidance at different stages of development, you can keep a
-single config and add optional `contexts:` overlays, then select one with
+single config and add optional `contexts:` messages, then select one with
 `--context`:
 
 ```yaml
@@ -184,14 +184,8 @@ ls:
   AGENTS.md: exists:1 => Each package must include AGENTS.md before merging
 
 contexts:
-  pre-commit:
-    ls:
-      .png: snake_case => Prefer snake_case while experimenting locally
-      AGENTS.md: exists:0-1 => Add AGENTS.md before you push this package
-  pre-push:
-    ls:
-      .png: snake_case => PNG files must use snake_case before pushing
-      AGENTS.md: exists:1 => Each package must include AGENTS.md before pushing
+  pre-commit: Commit is not blocked. Treat these failures as warnings about project shape and naming requirements, and queue any quick refactor before pushing.
+  pre-push: Push is blocked until these project shape and naming requirements are resolved or explicitly approved by the repository owner.
 ```
 
 This works well with the existing `--warn` flag:
@@ -200,9 +194,9 @@ This works well with the existing `--warn` flag:
 - `ls-lint --context pre-push` for stricter hook enforcement
 - `ls-lint --context pre-merge` in CI for the final policy
 
-The context overlay only changes the selected rules and ignores, so you can keep
-the common repository shape in one place and vary just the guidance or strictness
-for each stage.
+The selected context message is prepended to each failing rule output, so you can
+keep the structural rules in one place and vary only the stage-specific guidance
+for each hook or CI job.
 
 ### Result
 

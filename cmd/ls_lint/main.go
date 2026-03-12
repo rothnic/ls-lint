@@ -70,7 +70,8 @@ func main() {
 	}
 
 	lslintConfig := config.NewConfig(make(config.Ls), make([]string, 0))
-	contextAppliedOrNotRequired := *flagContext == ""
+	contextFound := *flagContext == ""
+	contextMessage := ""
 	for _, c := range flagConfig {
 		tmpLslintConfig := config.NewConfig(nil, nil)
 		var tmpConfigBytes []byte
@@ -84,19 +85,17 @@ func main() {
 		}
 
 		if *flagContext != "" {
-			var applied bool
-			if applied, err = tmpLslintConfig.ApplyContext(*flagContext); err != nil {
-				log.Fatal(err)
+			if message, found := tmpLslintConfig.GetContextMessage(*flagContext); found {
+				contextFound = true
+				contextMessage = message
 			}
-
-			contextAppliedOrNotRequired = contextAppliedOrNotRequired || applied
 		}
 
 		maps.Copy(lslintConfig.GetLs(), tmpLslintConfig.GetLs())
 		lslintConfig.Ignore = config.MergeIgnore(lslintConfig.Ignore, tmpLslintConfig.GetIgnore())
 	}
 
-	if *flagContext != "" && !contextAppliedOrNotRequired {
+	if *flagContext != "" && !contextFound {
 		log.Fatalf("context %q does not exist in the provided config file(s)", *flagContext)
 	}
 
@@ -126,6 +125,11 @@ func main() {
 	case "json":
 		errIndex := make(map[string]map[string][]string, len(lslintLinter.GetErrors()))
 		for _, ruleErr := range lslintLinter.GetErrors() {
+			ruleMessages := getRuleMessages(ruleErr, contextMessage)
+			if len(ruleMessages) == 0 {
+				continue
+			}
+
 			path := ruleErr.GetPath()
 			if path == "" {
 				path = "."
@@ -135,13 +139,7 @@ func main() {
 				errIndex[path] = make(map[string][]string)
 			}
 
-			for _, errRule := range ruleErr.GetRules() {
-				if !ruleErr.IsDir() && errRule.GetName() == "exists" {
-					continue
-				}
-
-				errIndex[path][ruleErr.GetExt()] = append(errIndex[path][ruleErr.GetExt()], errRule.GetErrorMessage())
-			}
+			errIndex[path][ruleErr.GetExt()] = append(errIndex[path][ruleErr.GetExt()], ruleMessages...)
 		}
 
 		var jsonStr []byte
@@ -154,19 +152,14 @@ func main() {
 		}
 	default:
 		for _, ruleErr := range lslintLinter.GetErrors() {
-			var ruleMessages []string
+			ruleMessages := getRuleMessages(ruleErr, contextMessage)
+			if len(ruleMessages) == 0 {
+				continue
+			}
 
 			path := ruleErr.GetPath()
 			if path == "" {
 				path = "."
-			}
-
-			for _, errRule := range ruleErr.GetRules() {
-				if !ruleErr.IsDir() && errRule.GetName() == "exists" {
-					continue
-				}
-
-				ruleMessages = append(ruleMessages, errRule.GetErrorMessage())
 			}
 
 			if _, err = fmt.Fprintf(writer, "%s failed for `%s` rules: %s\n", path, ruleErr.GetExt(), strings.Join(ruleMessages, " | ")); err != nil {
@@ -176,4 +169,22 @@ func main() {
 	}
 
 	os.Exit(exitCode)
+}
+
+func getRuleMessages(ruleErr *rule.Error, contextMessage string) []string {
+	rules := ruleErr.GetRules()
+	ruleMessages := make([]string, 0, len(rules)+1)
+	for _, errRule := range rules {
+		if !ruleErr.IsDir() && errRule.GetName() == "exists" {
+			continue
+		}
+
+		ruleMessages = append(ruleMessages, errRule.GetErrorMessage())
+	}
+
+	if contextMessage != "" && len(ruleMessages) > 0 {
+		ruleMessages = append([]string{contextMessage}, ruleMessages...)
+	}
+
+	return ruleMessages
 }

@@ -3,7 +3,6 @@ package config
 import (
 	"errors"
 	"fmt"
-	"maps"
 	"reflect"
 	"slices"
 	"strings"
@@ -14,12 +13,8 @@ import (
 )
 
 type (
-	Ls        map[string]interface{}
-	RuleIndex map[string]map[string][]rule.Rule
-	Context   struct {
-		Ls     Ls       `yaml:"ls"`
-		Ignore []string `yaml:"ignore"`
-	}
+	Ls          map[string]interface{}
+	RuleIndex   map[string]map[string][]rule.Rule
 	IgnoreIndex struct {
 		Exact map[string]bool
 		Glob  []string
@@ -35,9 +30,9 @@ const (
 var ErrInvalidIgnorePattern = errors.New("invalid ignore pattern")
 
 type Config struct {
-	Ls       Ls                 `yaml:"ls"`
-	Ignore   []string           `yaml:"ignore"`
-	Contexts map[string]Context `yaml:"contexts"`
+	Ls       Ls                `yaml:"ls"`
+	Ignore   []string          `yaml:"ignore"`
+	Contexts map[string]string `yaml:"contexts"`
 	*sync.RWMutex
 }
 
@@ -63,37 +58,24 @@ func (config *Config) GetIgnore() []string {
 	return config.Ignore
 }
 
-func (config *Config) ApplyContext(name string) (bool, error) {
-	config.Lock()
-	defer config.Unlock()
-
-	if name == "" {
-		return false, nil
-	}
-
-	context, exists := config.Contexts[name]
-	if !exists {
-		return false, nil
-	}
-
-	if len(context.Ls) > 0 {
-		if config.Ls == nil {
-			config.Ls = make(Ls)
-		}
-
-		maps.Copy(config.Ls, context.Ls)
-	}
-
-	config.Ignore = MergeIgnore(config.Ignore, context.Ignore)
-
-	return true, nil
-}
-
 func MergeIgnore(current []string, additional []string) []string {
 	current = append(current, additional...)
 	slices.Sort(current)
 
 	return slices.Compact(current)
+}
+
+func (config *Config) GetContextMessage(name string) (string, bool) {
+	config.RLock()
+	defer config.RUnlock()
+
+	if name == "" {
+		return "", false
+	}
+
+	message, exists := config.Contexts[name]
+
+	return message, exists
 }
 
 func (config *Config) GetIgnoreIndex() (*IgnoreIndex, error) {
