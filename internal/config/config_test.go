@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/loeffel-io/ls-lint/v2/internal/rule"
+	"go.yaml.in/yaml/v3"
 )
 
 func TestGetConfig(t *testing.T) {
@@ -229,5 +230,53 @@ func TestGetIndex_InvalidContentRule(t *testing.T) {
 	_, err := config.GetIndex(config.GetLs())
 	if err == nil || err.Error() != "rule content failed with unknown content rule not-a-rule" {
 		t.Fatalf("expected invalid content rule error, got %v", err)
+	}
+}
+
+func TestConfigYAMLAnchorsForSharedRuleSets(t *testing.T) {
+	configYAML := []byte(`
+shared:
+  jsTsDefault: &js_ts_default camelCase | PascalCase | content:max-lines:4
+  jsTsRelaxed: &js_ts_relaxed camelCase | PascalCase
+ls:
+  .js: *js_ts_default
+  .ts: *js_ts_default
+  vendor:
+    .js: *js_ts_relaxed
+    .ts: *js_ts_relaxed
+ignore:
+  - node_modules
+`)
+
+	config := NewConfig(nil, nil)
+	if err := yaml.Unmarshal(configYAML, config); err != nil {
+		t.Fatalf("expected yaml to unmarshal, got %v", err)
+	}
+
+	index, err := config.GetIndex(config.GetLs())
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	rootTSRules := index[""][".ts"]
+	if len(rootTSRules) != 3 {
+		t.Fatalf("expected 3 root .ts rules, got %d", len(rootTSRules))
+	}
+	if rootTSRules[2].GetName() != "content" || !reflect.DeepEqual(rootTSRules[2].GetParameters(), []string{"max-lines:4"}) {
+		t.Fatalf("expected root .ts to include max-lines content rule, got %s %v", rootTSRules[2].GetName(), rootTSRules[2].GetParameters())
+	}
+
+	vendorTSRules := index["vendor"][".ts"]
+	if len(vendorTSRules) != 2 {
+		t.Fatalf("expected 2 vendor .ts rules, got %d", len(vendorTSRules))
+	}
+	for _, ruleFile := range vendorTSRules {
+		if ruleFile.GetName() == "content" {
+			t.Fatalf("expected vendor .ts override to omit content rules, got %v", vendorTSRules)
+		}
+	}
+
+	if !reflect.DeepEqual(config.GetIgnore(), []string{"node_modules"}) {
+		t.Fatalf("expected ignore list to survive yaml unmarshal, got %v", config.GetIgnore())
 	}
 }

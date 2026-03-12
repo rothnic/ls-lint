@@ -1399,6 +1399,8 @@ func TestLinter_Run_ContentRules(t *testing.T) {
 		filesystem           fs.FS
 		config               *config.Config
 		expectedRuleMessages []string
+		expectedPath         string
+		expectedExt          string
 	}{
 		{
 			description: "content rules pass",
@@ -1423,11 +1425,34 @@ func TestLinter_Run_ContentRules(t *testing.T) {
 					".md": "kebab-case | content:max-lines:2 | content:max-line-length:10 | content:heading:^## Overview$ | content:front-matter:required",
 				},
 			}, nil),
+			expectedPath: "docs/guide-page.md",
+			expectedExt:  ".md",
 			expectedRuleMessages: []string{
 				"content:max-lines:2 (found 3)",
 				"content:max-line-length:10 (found 21)",
 				"content:heading:^## Overview$",
 				"content:front-matter:required",
+			},
+		},
+		{
+			description: "more specific path overrides can disable inherited content checks",
+			filesystem: fstest.MapFS{
+				"src":                    &fstest.MapFile{Mode: fs.ModeDir},
+				"src/core":               &fstest.MapFile{Mode: fs.ModeDir},
+				"src/core/mainFile.ts":   &fstest.MapFile{Data: []byte("line one\nline two\nline three\n"), Mode: fs.ModePerm},
+				"src/vendor":             &fstest.MapFile{Mode: fs.ModeDir},
+				"src/vendor/mainFile.ts": &fstest.MapFile{Data: []byte("line one\nline two\nline three\n"), Mode: fs.ModePerm},
+			},
+			config: config.NewConfig(config.Ls{
+				".ts": "camelCase | content:max-lines:2",
+				"src/vendor": config.Ls{
+					".ts": "camelCase",
+				},
+			}, nil),
+			expectedPath: "src/core/mainFile.ts",
+			expectedExt:  ".ts",
+			expectedRuleMessages: []string{
+				"content:max-lines:2 (found 3)",
 			},
 		},
 	}
@@ -1459,11 +1484,11 @@ func TestLinter_Run_ContentRules(t *testing.T) {
 		if len(errors) != 1 {
 			t.Fatalf("%s: expected one lint error, got %+v", test.description, errors)
 		}
-		if errors[0].GetPath() != "docs/guide-page.md" {
-			t.Fatalf("%s: expected error path docs/guide-page.md, got %s", test.description, errors[0].GetPath())
+		if errors[0].GetPath() != test.expectedPath {
+			t.Fatalf("%s: expected error path %s, got %s", test.description, test.expectedPath, errors[0].GetPath())
 		}
-		if errors[0].GetExt() != ".md" {
-			t.Fatalf("%s: expected error ext .md, got %s", test.description, errors[0].GetExt())
+		if errors[0].GetExt() != test.expectedExt {
+			t.Fatalf("%s: expected error ext %s, got %s", test.description, test.expectedExt, errors[0].GetExt())
 		}
 
 		ruleMessages := make([]string, 0, len(errors[0].GetRules()))

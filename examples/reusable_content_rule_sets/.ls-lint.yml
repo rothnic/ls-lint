@@ -1,0 +1,29 @@
+shared:
+  # YAML anchors keep repeated rule strings concise. ls-lint ignores this helper block.
+  jsTsDefault: &js_ts_default camelCase | PascalCase | content:max-lines:400
+  jsTsLargeFiles: &js_ts_large_files camelCase | PascalCase | content:max-lines:800
+  jsTsNamingOnly: &js_ts_naming_only camelCase | PascalCase
+
+ls:
+  # Shared defaults for application code.
+  .js: *js_ts_default
+  .jsx: *js_ts_default
+  .ts: *js_ts_default
+  .tsx: *js_ts_default
+
+  # A more specific path overrides the parent scope for matching files.
+  scripts:
+    .js: *js_ts_large_files
+    .ts: *js_ts_large_files
+
+  # Drop the max-lines check in vendor code while keeping the naming policy.
+  vendor:
+    .js: *js_ts_naming_only
+    .jsx: *js_ts_naming_only
+    .ts: *js_ts_naming_only
+    .tsx: *js_ts_naming_only
+
+ignore:
+  # If you need to disable ls-lint entirely for a path, ignore it explicitly.
+  - node_modules
+  - dist

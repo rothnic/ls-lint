@@ -174,6 +174,36 @@ ls:
     .md: kebab-case | content:max-lines:250 | content:heading:^## Overview$ | content:front-matter:required
 ```
 
+To keep a repeated content rule set concise across several extensions, you can use
+YAML anchors and aliases:
+
+```yaml
+shared:
+  jsTsDefault: &js_ts_default camelCase | PascalCase | content:max-lines:400
+  jsTsNamingOnly: &js_ts_naming_only camelCase | PascalCase
+
+ls:
+  .js: *js_ts_default
+  .jsx: *js_ts_default
+  .ts: *js_ts_default
+  .tsx: *js_ts_default
+
+  vendor:
+    .js: *js_ts_naming_only
+    .jsx: *js_ts_naming_only
+    .ts: *js_ts_naming_only
+    .tsx: *js_ts_naming_only
+```
+
+This gives you a labeled, reusable rule string without adding new ls-lint syntax.
+More specific path blocks replace the parent scope for matching files, so to
+relax or disable an inherited content check in a subtree you restate the naming
+rules you still want and omit the `content:*` directive you no longer want.
+
+For a fuller JavaScript/TypeScript example with shared defaults, stricter
+overrides, and a path that disables the `max-lines` check, see
+[`examples/reusable_content_rule_sets/.ls-lint.yml`](examples/reusable_content_rule_sets/.ls-lint.yml).
+
 ### Result
 
 <img src="https://i.imgur.com/pxXkYcl.gif" alt="command" width="600">
