@@ -28,7 +28,7 @@ func main() {
 	flagWorkdir := flags.String("workdir", ".", "change working directory before executing the given subcommand")
 	flagErrorOutputFormat := flags.String("error-output-format", "text", "use a specific error output format (text, json)")
 	flagContext := flags.String("context", "", "apply an optional config context such as pre-commit, pre-push, or pre-merge")
-	flagWarn := flags.Bool("warn", false, "write lint errors to stdout instead of stderr (exit 0), overriding context mode when set")
+	flagWarn := flags.Bool("warn", false, "write lint errors to stdout instead of stderr (exit 0); explicit --warn or --warn=false overrides context mode")
 	flagDebug := flags.Bool("debug", false, "write debug informations to stdout")
 	flagVersion := flags.Bool("version", false, "prints version information for ls-lint")
 
@@ -72,7 +72,7 @@ func main() {
 	lslintConfig := config.NewConfig(make(config.Ls), make([]string, 0))
 	contextFound := *flagContext == ""
 	selectedContext := config.Context{}
-	warnExplicit := flagProvided(flags, "warn")
+	warnExplicit := wasFlagProvided(flags, "warn")
 	for _, c := range flagConfig {
 		tmpLslintConfig := config.NewConfig(nil, nil)
 		var tmpConfigBytes []byte
@@ -193,7 +193,7 @@ func getRuleMessages(ruleErr *rule.Error, contextMessage string) []string {
 	return ruleMessages
 }
 
-func flagProvided(flags *flag.FlagSet, name string) bool {
+func wasFlagProvided(flags *flag.FlagSet, name string) bool {
 	provided := false
 	flags.Visit(func(flag *flag.Flag) {
 		if flag.Name == name {
@@ -204,10 +204,10 @@ func flagProvided(flags *flag.FlagSet, name string) bool {
 	return provided
 }
 
-func resolveWarn(flagWarn bool, warnExplicit bool, context config.Context) bool {
+func resolveWarn(warnEnabled bool, warnExplicit bool, selectedContext config.Context) bool {
 	if warnExplicit {
-		return flagWarn
+		return warnEnabled
 	}
 
-	return flagWarn || context.ShouldWarn()
+	return warnEnabled || selectedContext.ShouldWarn()
 }

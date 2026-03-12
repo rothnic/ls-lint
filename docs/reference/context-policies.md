@@ -42,8 +42,9 @@ When the structured form is used, ls-lint builds one readable context message
 from the populated fields and prepends it to each failing rule output.
 
 `mode: warn` also lets `ls-lint --context <name>` behave like `--warn` by
-default, so hook commands do not need to repeat that policy. An explicit
-`--warn` flag still wins if you need to override the selected context.
+default, so hook commands do not need to repeat that policy. Explicit
+`--warn` or `--warn=false` still wins if you need to override the selected
+context.
 
 ## Hook and CI examples
 

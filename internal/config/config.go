@@ -90,12 +90,6 @@ func (context *Context) UnmarshalYAML(node *yaml.Node) error {
 		}
 
 		context.Message = message
-		context.Mode = ""
-		context.Hook = ""
-		context.Environment = ""
-		context.Override = ""
-		context.PolicyChanges = ""
-		context.References = nil
 		return nil
 	case yaml.MappingNode:
 		type rawContext Context
@@ -105,7 +99,7 @@ func (context *Context) UnmarshalYAML(node *yaml.Node) error {
 			return err
 		}
 
-		mode, err := normalizeContextMode(raw.Mode)
+		mode, err := validateAndNormalizeContextMode(raw.Mode)
 		if err != nil {
 			return err
 		}
@@ -118,18 +112,18 @@ func (context *Context) UnmarshalYAML(node *yaml.Node) error {
 	}
 }
 
-func normalizeContextMode(mode string) (string, error) {
-	mode = strings.TrimSpace(strings.ToLower(mode))
-	switch mode {
+func validateAndNormalizeContextMode(mode string) (string, error) {
+	normalized := strings.TrimSpace(strings.ToLower(mode))
+	switch normalized {
 	case "", ContextModeWarn, ContextModeFail:
-		return mode, nil
+		return normalized, nil
 	default:
 		return "", fmt.Errorf("context mode %q is invalid, expected %q or %q", mode, ContextModeWarn, ContextModeFail)
 	}
 }
 
 func (context Context) ShouldWarn() bool {
-	return strings.TrimSpace(strings.ToLower(context.Mode)) == ContextModeWarn
+	return context.Mode == ContextModeWarn
 }
 
 func (context Context) GetMessage(name string) string {
@@ -144,7 +138,7 @@ func (context Context) GetMessage(name string) string {
 		clauses = append(clauses, fmt.Sprintf("environment: %s", environment))
 	}
 
-	switch strings.TrimSpace(strings.ToLower(context.Mode)) {
+	switch context.Mode {
 	case ContextModeWarn:
 		clauses = append(clauses, "enforcement: warning")
 	case ContextModeFail:

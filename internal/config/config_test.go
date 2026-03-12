@@ -226,6 +226,18 @@ contexts:
 			},
 		},
 		{
+			description: "allows empty structured mode",
+			content: `
+contexts:
+  pre-commit:
+    mode: ""
+    message: Context without explicit mode.
+`,
+			expected: Context{
+				Message: "Context without explicit mode.",
+			},
+		},
+		{
 			description: "rejects invalid structured mode",
 			content: `
 contexts:
@@ -254,8 +266,26 @@ contexts:
 			if !found {
 				t.Fatalf("expected context to be found")
 			}
-			if !reflect.DeepEqual(context, test.expected) {
-				t.Fatalf("expected context %+v, got %+v", test.expected, context)
+			if context.Message != test.expected.Message {
+				t.Fatalf("expected message %q, got %q", test.expected.Message, context.Message)
+			}
+			if context.Mode != test.expected.Mode {
+				t.Fatalf("expected mode %q, got %q", test.expected.Mode, context.Mode)
+			}
+			if context.Hook != test.expected.Hook {
+				t.Fatalf("expected hook %q, got %q", test.expected.Hook, context.Hook)
+			}
+			if context.Environment != test.expected.Environment {
+				t.Fatalf("expected environment %q, got %q", test.expected.Environment, context.Environment)
+			}
+			if context.Override != test.expected.Override {
+				t.Fatalf("expected override %q, got %q", test.expected.Override, context.Override)
+			}
+			if context.PolicyChanges != test.expected.PolicyChanges {
+				t.Fatalf("expected policy changes %q, got %q", test.expected.PolicyChanges, context.PolicyChanges)
+			}
+			if !reflect.DeepEqual(context.References, test.expected.References) {
+				t.Fatalf("expected references %+v, got %+v", test.expected.References, context.References)
 			}
 		})
 	}
