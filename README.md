@@ -161,6 +161,19 @@ required for this exact policy shape.
 
 `exists:0-1` is the correct way to express “optional, but at most one”.
 
+Matched files can also validate lightweight content structure with `content`:
+
+- `content:max-lines:<n>` - maximum number of lines
+- `content:max-line-length:<n>` - maximum line length in runes
+- `content:heading:<regex>` - require at least one matching heading line
+- `content:front-matter:required` - require YAML front matter at the top of the file
+
+```yaml
+ls:
+  docs:
+    .md: kebab-case | content:max-lines:250 | content:heading:^## Overview$ | content:front-matter:required
+```
+
 ### Result
 
 <img src="https://i.imgur.com/pxXkYcl.gif" alt="command" width="600">

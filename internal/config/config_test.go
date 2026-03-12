@@ -185,3 +185,49 @@ func TestShouldIgnore(t *testing.T) {
 		i++
 	}
 }
+
+func TestGetIndex_ContentRules(t *testing.T) {
+	config := NewConfig(Ls{
+		".md": "kebab-case | content:max-lines:10 | content:heading:^## Overview$ | content:front-matter:required",
+	}, nil)
+
+	index, err := config.GetIndex(config.GetLs())
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	rules := index[""][".md"]
+	expected := []struct {
+		name   string
+		params []string
+	}{
+		{name: "kebabcase", params: nil},
+		{name: "content", params: []string{"max-lines:10"}},
+		{name: "content", params: []string{"heading:^## Overview$"}},
+		{name: "content", params: []string{"front-matter:required"}},
+	}
+
+	if len(rules) != len(expected) {
+		t.Fatalf("expected %d rules, got %d", len(expected), len(rules))
+	}
+
+	for i, expectedRule := range expected {
+		if rules[i].GetName() != expectedRule.name {
+			t.Fatalf("expected rule %d name %q, got %q", i, expectedRule.name, rules[i].GetName())
+		}
+		if !reflect.DeepEqual(rules[i].GetParameters(), expectedRule.params) {
+			t.Fatalf("expected rule %d params %v, got %v", i, expectedRule.params, rules[i].GetParameters())
+		}
+	}
+}
+
+func TestGetIndex_InvalidContentRule(t *testing.T) {
+	config := NewConfig(Ls{
+		".md": "content:not-a-rule:1",
+	}, nil)
+
+	_, err := config.GetIndex(config.GetLs())
+	if err == nil || err.Error() != "rule content failed with unknown content rule not-a-rule" {
+		t.Fatalf("expected invalid content rule error, got %v", err)
+	}
+}

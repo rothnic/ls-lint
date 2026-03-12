@@ -4,6 +4,7 @@ var RulesIndex = map[string]Rule{
 	"lowercase": new(Lowercase).Init(),
 	"regex":     new(Regex).Init(),
 	"exists":    new(Exists).Init(),
+	"content":   new(Content).Init(),
 
 	"camelcase":          new(CamelCase).Init(),
 	"pascalcase":         new(PascalCase).Init(),
@@ -16,6 +17,7 @@ var Rules = map[string]Rule{
 	"lowercase": RulesIndex["lowercase"],
 	"regex":     RulesIndex["regex"],
 	"exists":    RulesIndex["exists"],
+	"content":   RulesIndex["content"],
 
 	"camelcase": RulesIndex["camelcase"],
 	"camelCase": RulesIndex["camelcase"],
@@ -47,4 +49,9 @@ type Rule interface {
 	Validate(value string, path string, fail bool) (bool, error)
 	GetErrorMessage() string
 	Copy() Rule
+}
+
+type ContentRule interface {
+	Rule
+	ValidateContent(content []byte, path string) (bool, error)
 }
