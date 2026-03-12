@@ -50,6 +50,8 @@ context.
 
 Text output keeps the normal `path failed for \`rule-key\` rules:` shape and
 prepends the rendered context policy once before the failing rule messages.
+The real CLI emits each failure on one line; the examples below are wrapped only
+for readability in the docs.
 
 With this config:
 
@@ -76,14 +78,29 @@ contexts:
 A filename rule failure looks like:
 
 ```text
-not-snake-case.png failed for `.png` rules: Context `pre-commit`: warning, pre-commit hook, local environment. Override approval: repository owner approval. Change approval: repository owner approval. References: docs/reference/context-policies.md. Treat these failures as early warnings about repository structure and naming so they can be fixed before push. | PNG files must use snake_case before pushing
+not-snake-case.png failed for `.png` rules:
+  Context `pre-commit`: warning, pre-commit hook, local environment.
+  Override approval: repository owner approval.
+  Change approval: repository owner approval.
+  References: docs/reference/context-policies.md.
+  Treat these failures as early warnings about repository structure and naming
+  so they can be fixed before push.
+  | PNG files must use snake_case before pushing
 ```
 
 A directory-scoped `exists` failure keeps the same context prefix and then adds
 the underlying rule details:
 
 ```text
-packages/example failed for `README.md` rules: Context `pre-commit`: warning, pre-commit hook, local environment. Override approval: repository owner approval. Change approval: repository owner approval. References: docs/reference/context-policies.md. Treat these failures as early warnings about repository structure and naming so they can be fixed before push. | exists:1-32767 (found 0) | Each package must include README.md before merging
+packages/example failed for `README.md` rules:
+  Context `pre-commit`: warning, pre-commit hook, local environment.
+  Override approval: repository owner approval.
+  Change approval: repository owner approval.
+  References: docs/reference/context-policies.md.
+  Treat these failures as early warnings about repository structure and naming
+  so they can be fixed before push.
+  | exists:1-32767 (found 0)
+  | Each package must include README.md before merging
 ```
 
 ## Hook and CI examples
