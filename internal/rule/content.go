@@ -271,9 +271,13 @@ func hasFrontMatter(lines []string) bool {
 		return false
 	}
 
-	for _, line := range lines[2:] {
+	hasContent := false
+	for _, line := range lines[1:] {
 		if line == "---" || line == "..." {
-			return true
+			return hasContent
+		}
+		if strings.TrimSpace(line) != "" {
+			hasContent = true
 		}
 	}
 

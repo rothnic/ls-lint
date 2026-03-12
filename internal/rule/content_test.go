@@ -62,6 +62,12 @@ func TestContent(t *testing.T) {
 			expected:    false,
 		},
 		{
+			description: "front matter requires non-empty content",
+			params:      []string{"front-matter:required"},
+			content:     "---\n   \n---\n",
+			expected:    false,
+		},
+		{
 			description: "unknown content subrule",
 			params:      []string{"unknown:1"},
 			expectedErr: "unknown content rule unknown",

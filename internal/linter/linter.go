@@ -218,8 +218,8 @@ func (linter *Linter) validateFile(filesystem fs.FS, index config.RuleIndex, pat
 		return indexDir, ext, nil
 	}
 
-	regularRules := make([]rule.Rule, 0, len(rules[ext]))
-	contentRules := make([]rule.ContentRule, 0)
+	var regularRules []rule.Rule
+	var contentRules []rule.ContentRule
 	for _, ruleFile := range rules[ext] {
 		if contentRule, ok := ruleFile.(rule.ContentRule); ok {
 			if validate {
