@@ -3,7 +3,9 @@ package config
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 
@@ -12,8 +14,12 @@ import (
 )
 
 type (
-	Ls          map[string]interface{}
-	RuleIndex   map[string]map[string][]rule.Rule
+	Ls        map[string]interface{}
+	RuleIndex map[string]map[string][]rule.Rule
+	Context   struct {
+		Ls     Ls       `yaml:"ls"`
+		Ignore []string `yaml:"ignore"`
+	}
 	IgnoreIndex struct {
 		Exact map[string]bool
 		Glob  []string
@@ -29,8 +35,9 @@ const (
 var ErrInvalidIgnorePattern = errors.New("invalid ignore pattern")
 
 type Config struct {
-	Ls     Ls       `yaml:"ls"`
-	Ignore []string `yaml:"ignore"`
+	Ls       Ls                 `yaml:"ls"`
+	Ignore   []string           `yaml:"ignore"`
+	Contexts map[string]Context `yaml:"contexts"`
 	*sync.RWMutex
 }
 
@@ -54,6 +61,34 @@ func (config *Config) GetIgnore() []string {
 	defer config.RUnlock()
 
 	return config.Ignore
+}
+
+func (config *Config) ApplyContext(name string) (bool, error) {
+	config.Lock()
+	defer config.Unlock()
+
+	if name == "" {
+		return false, nil
+	}
+
+	context, exists := config.Contexts[name]
+	if !exists {
+		return false, nil
+	}
+
+	if len(context.Ls) > 0 {
+		if config.Ls == nil {
+			config.Ls = make(Ls)
+		}
+
+		maps.Copy(config.Ls, context.Ls)
+	}
+
+	config.Ignore = append(config.Ignore, context.Ignore...)
+	slices.Sort(config.Ignore)
+	config.Ignore = slices.Compact(config.Ignore)
+
+	return true, nil
 }
 
 func (config *Config) GetIgnoreIndex() (*IgnoreIndex, error) {

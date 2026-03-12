@@ -162,6 +162,64 @@ func TestLinter_Run(t *testing.T) {
 			},
 		},
 		{
+			description: "fail with context-specific feedback",
+			filesystem: fstest.MapFS{
+				"not-snake-case.png": &fstest.MapFile{Mode: fs.ModePerm},
+			},
+			paths: nil,
+			linter: func() *Linter {
+				lslintConfig := config.NewConfig(
+					config.Ls{
+						".png": "snake_case => PNG files must use snake_case before pushing",
+					},
+					[]string{},
+				)
+				lslintConfig.Contexts = map[string]config.Context{
+					"pre-commit": {
+						Ls: config.Ls{
+							".png": "snake_case => Prefer snake_case while experimenting locally",
+						},
+					},
+				}
+				if _, err := lslintConfig.ApplyContext("pre-commit"); err != nil {
+					t.Fatalf("expected no error applying context, got %v", err)
+				}
+
+				return NewLinter(
+					".",
+					lslintConfig,
+					&debug.Statistic{
+						Start:     start,
+						Files:     0,
+						FileSkips: 0,
+						Dirs:      0,
+						DirSkips:  0,
+						RWMutex:   new(sync.RWMutex),
+					},
+					[]*rule.Error{},
+				)
+			}(),
+			expectedErr: nil,
+			expectedStatistic: &debug.Statistic{
+				Start:     start,
+				Files:     1,
+				FileSkips: 0,
+				Dirs:      1,
+				DirSkips:  0,
+				RWMutex:   new(sync.RWMutex),
+			},
+			expectedErrors: []*rule.Error{
+				{
+					Path: "not-snake-case.png",
+					Ext:  ".png",
+					Rules: []rule.Rule{
+						rule.NewFeedback(new(rule.SnakeCase).Init(), "Prefer snake_case while experimenting locally"),
+					},
+					RWMutex: new(sync.RWMutex),
+				},
+			},
+		},
+		{
 			description: "glob",
 			filesystem: fstest.MapFS{
 				"snake_case.png":                  &fstest.MapFile{Mode: fs.ModePerm},

@@ -28,6 +28,7 @@ func main() {
 	flags := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 	flagWorkdir := flags.String("workdir", ".", "change working directory before executing the given subcommand")
 	flagErrorOutputFormat := flags.String("error-output-format", "text", "use a specific error output format (text, json)")
+	flagContext := flags.String("context", "", "apply an optional config context such as pre-commit, pre-push, or pre-merge")
 	flagWarn := flags.Bool("warn", false, "write lint errors to stdout instead of stderr (exit 0)")
 	flagDebug := flags.Bool("debug", false, "write debug informations to stdout")
 	flagVersion := flags.Bool("version", false, "prints version information for ls-lint")
@@ -70,6 +71,7 @@ func main() {
 	}
 
 	lslintConfig := config.NewConfig(make(config.Ls), make([]string, 0))
+	contextFound := *flagContext == ""
 	for _, c := range flagConfig {
 		tmpLslintConfig := config.NewConfig(nil, nil)
 		var tmpConfigBytes []byte
@@ -82,10 +84,23 @@ func main() {
 			log.Fatal(err)
 		}
 
+		if *flagContext != "" {
+			var applied bool
+			if applied, err = tmpLslintConfig.ApplyContext(*flagContext); err != nil {
+				log.Fatal(err)
+			}
+
+			contextFound = contextFound || applied
+		}
+
 		maps.Copy(lslintConfig.GetLs(), tmpLslintConfig.GetLs())
 		lslintConfig.Ignore = append(lslintConfig.Ignore, tmpLslintConfig.GetIgnore()...)
 		slices.Sort(lslintConfig.Ignore)
 		lslintConfig.Ignore = slices.Compact(lslintConfig.Ignore)
+	}
+
+	if !contextFound {
+		log.Fatalf("context %q does not exist in the provided config file(s)", *flagContext)
 	}
 
 	lslintLinter := linter.NewLinter(

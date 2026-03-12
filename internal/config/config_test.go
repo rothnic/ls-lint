@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"reflect"
+	"sync"
 	"testing"
 
 	"github.com/loeffel-io/ls-lint/v2/internal/rule"
@@ -113,6 +114,76 @@ func TestGetIgnoreIndex(t *testing.T) {
 		}
 		if !reflect.DeepEqual(index.Glob, test.expectedGlob) {
 			t.Fatalf("%s: expected glob index %+v, got %+v", test.description, test.expectedGlob, index.Glob)
+		}
+	}
+}
+
+func TestApplyContext(t *testing.T) {
+	tests := []struct {
+		description     string
+		config          *Config
+		context         string
+		expectedApplied bool
+		expectedLs      Ls
+		expectedIgnore  []string
+	}{
+		{
+			description: "applies selected context overrides",
+			config: &Config{
+				Ls: Ls{
+					".png": "snake_case => Must use snake_case before merging",
+				},
+				Ignore: []string{"node_modules"},
+				Contexts: map[string]Context{
+					"pre-commit": {
+						Ls: Ls{
+							".png": "snake_case => Prefer snake_case while iterating locally",
+							".md":  "kebab-case => Markdown files should stay kebab-case",
+						},
+						Ignore: []string{"tmp"},
+					},
+				},
+				RWMutex: new(sync.RWMutex),
+			},
+			context:         "pre-commit",
+			expectedApplied: true,
+			expectedLs: Ls{
+				".png": "snake_case => Prefer snake_case while iterating locally",
+				".md":  "kebab-case => Markdown files should stay kebab-case",
+			},
+			expectedIgnore: []string{"node_modules", "tmp"},
+		},
+		{
+			description: "returns false when context is missing",
+			config: &Config{
+				Ls: Ls{
+					".png": "snake_case",
+				},
+				Ignore:  []string{"node_modules"},
+				RWMutex: new(sync.RWMutex),
+			},
+			context:         "pre-push",
+			expectedApplied: false,
+			expectedLs: Ls{
+				".png": "snake_case",
+			},
+			expectedIgnore: []string{"node_modules"},
+		},
+	}
+
+	for _, test := range tests {
+		applied, err := test.config.ApplyContext(test.context)
+		if err != nil {
+			t.Fatalf("%s: expected no error, got %v", test.description, err)
+		}
+		if applied != test.expectedApplied {
+			t.Fatalf("%s: expected applied=%t, got %t", test.description, test.expectedApplied, applied)
+		}
+		if !reflect.DeepEqual(test.config.GetLs(), test.expectedLs) {
+			t.Fatalf("%s: expected ls %+v, got %+v", test.description, test.expectedLs, test.config.GetLs())
+		}
+		if !reflect.DeepEqual(test.config.GetIgnore(), test.expectedIgnore) {
+			t.Fatalf("%s: expected ignore %+v, got %+v", test.description, test.expectedIgnore, test.config.GetIgnore())
 		}
 	}
 }
