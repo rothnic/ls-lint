@@ -21,8 +21,9 @@ type (
 )
 
 const (
-	sep = string('/')
-	or  = " | "
+	sep              = string('/')
+	or               = " | "
+	customMessageSep = " => "
 )
 
 var ErrInvalidIgnorePattern = errors.New("invalid ignore pattern")
@@ -181,19 +182,20 @@ func (config *Config) walkIndex(index RuleIndex, key string, list Ls) error {
 			continue
 		}
 
-		for _, ruleName := range strings.Split(v.(string), or) {
-			ruleName = strings.TrimSpace(ruleName)
-			ruleSplit := strings.SplitN(ruleName, ":", 2)
-			ruleName = ruleSplit[0]
+		for _, ruleDefinition := range strings.Split(v.(string), or) {
+			ruleName, ruleParameters, message, err := parseRuleDefinition(ruleDefinition)
+			if err != nil {
+				return err
+			}
 
 			if r, ok := rule.Rules[ruleName]; ok {
 				r = r.Copy()
 
-				if err := r.SetParameters(ruleSplit[1:]); err != nil {
+				if err := r.SetParameters(ruleParameters); err != nil {
 					return fmt.Errorf("rule %s failed with %s", ruleName, err.Error())
 				}
 
-				index[key][k] = append(index[key][k], r)
+				index[key][k] = append(index[key][k], rule.NewFeedback(r, message))
 				continue
 			}
 
@@ -202,4 +204,26 @@ func (config *Config) walkIndex(index RuleIndex, key string, list Ls) error {
 	}
 
 	return nil
+}
+
+func parseRuleDefinition(ruleDefinition string) (string, []string, string, error) {
+	ruleDefinition = strings.TrimSpace(ruleDefinition)
+
+	message := ""
+	if index := strings.LastIndex(ruleDefinition, customMessageSep); index != -1 {
+		message = strings.TrimSpace(ruleDefinition[index+len(customMessageSep):])
+		if message == "" {
+			return "", nil, "", fmt.Errorf("rule %q has an empty custom message", ruleDefinition)
+		}
+
+		ruleDefinition = strings.TrimSpace(ruleDefinition[:index])
+	}
+
+	ruleSplit := strings.SplitN(ruleDefinition, ":", 2)
+	ruleName := strings.TrimSpace(ruleSplit[0])
+	if ruleName == "" {
+		return "", nil, "", fmt.Errorf("rule %q not exists", ruleName)
+	}
+
+	return ruleName, ruleSplit[1:], message, nil
 }

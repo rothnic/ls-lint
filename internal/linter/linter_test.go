@@ -118,6 +118,50 @@ func TestLinter_Run(t *testing.T) {
 			},
 		},
 		{
+			description: "fail with custom rule feedback",
+			filesystem: fstest.MapFS{
+				"not-snake-case.png": &fstest.MapFile{Mode: fs.ModePerm},
+			},
+			paths: nil,
+			linter: NewLinter(
+				".",
+				config.NewConfig(
+					config.Ls{
+						".png": "snake_case => PNG files must use snake_case",
+					},
+					[]string{},
+				),
+				&debug.Statistic{
+					Start:     start,
+					Files:     0,
+					FileSkips: 0,
+					Dirs:      0,
+					DirSkips:  0,
+					RWMutex:   new(sync.RWMutex),
+				},
+				[]*rule.Error{},
+			),
+			expectedErr: nil,
+			expectedStatistic: &debug.Statistic{
+				Start:     start,
+				Files:     1,
+				FileSkips: 0,
+				Dirs:      1,
+				DirSkips:  0,
+				RWMutex:   new(sync.RWMutex),
+			},
+			expectedErrors: []*rule.Error{
+				{
+					Path: "not-snake-case.png",
+					Ext:  ".png",
+					Rules: []rule.Rule{
+						rule.NewFeedback(new(rule.SnakeCase).Init(), "PNG files must use snake_case"),
+					},
+					RWMutex: new(sync.RWMutex),
+				},
+			},
+		},
+		{
 			description: "glob",
 			filesystem: fstest.MapFS{
 				"snake_case.png":                  &fstest.MapFile{Mode: fs.ModePerm},
@@ -1380,6 +1424,14 @@ func TestLinter_Run(t *testing.T) {
 				compareRuleParameters := len(expectedRuleParameters) > 0
 				if tmpRule.GetName() == "exists" && reflect.DeepEqual(expectedRuleParameters, new(rule.Exists).Init().GetParameters()) {
 					compareRuleParameters = false
+				}
+
+				_, expectedRuleHasCustomFeedback := expectedRule.(*rule.Feedback)
+				if tmpRule.GetName() != "exists" || expectedRuleHasCustomFeedback {
+					if tmpRule.GetErrorMessage() != expectedRule.GetErrorMessage() {
+						t.Error(equalErrorsErr)
+						return
+					}
 				}
 
 				if compareRuleParameters && !reflect.DeepEqual(tmpRule.GetParameters(), expectedRuleParameters) {

@@ -161,6 +161,19 @@ required for this exact policy shape.
 
 `exists:0-1` is the correct way to express “optional, but at most one”.
 
+You can also add optional rule-specific feedback with ` => ` so failures explain the
+intent directly:
+
+```yaml
+ls:
+  packages/*:
+    AGENTS.md: exists:1 => Each package must include an AGENTS.md with local guardrails
+    .ts: camelCase => Utility modules must use camelCase
+```
+
+This feedback is attached to the individual rule, so existing rule syntax keeps
+working unchanged and only the failing rule's message is replaced.
+
 ### Result
 
 <img src="https://i.imgur.com/pxXkYcl.gif" alt="command" width="600">

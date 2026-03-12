@@ -117,6 +117,49 @@ func TestGetIgnoreIndex(t *testing.T) {
 	}
 }
 
+func TestGetIndex_CustomRuleFeedback(t *testing.T) {
+	lslintConfig := NewConfig(Ls{
+		".png": "snake_case => PNG files must use snake_case",
+		".md":  "regex:^(README|AGENTS)$ => Markdown files must be README.md or AGENTS.md",
+		".go":  "camelCase",
+	}, nil)
+
+	index, err := lslintConfig.GetIndex(lslintConfig.GetLs())
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	pngRules := index[""][".png"]
+	if len(pngRules) != 1 {
+		t.Fatalf("expected 1 png rule, got %d", len(pngRules))
+	}
+	if pngRules[0].GetName() != new(rule.SnakeCase).Init().GetName() {
+		t.Fatalf("expected snake_case rule, got %q", pngRules[0].GetName())
+	}
+	if pngRules[0].GetErrorMessage() != "PNG files must use snake_case" {
+		t.Fatalf("expected custom png message, got %q", pngRules[0].GetErrorMessage())
+	}
+
+	mdRules := index[""][".md"]
+	if len(mdRules) != 1 {
+		t.Fatalf("expected 1 md rule, got %d", len(mdRules))
+	}
+	if !reflect.DeepEqual(mdRules[0].GetParameters(), []string{"^(README|AGENTS)$"}) {
+		t.Fatalf("expected regex parameters to be preserved, got %+v", mdRules[0].GetParameters())
+	}
+	if mdRules[0].GetErrorMessage() != "Markdown files must be README.md or AGENTS.md" {
+		t.Fatalf("expected custom md message, got %q", mdRules[0].GetErrorMessage())
+	}
+
+	goRules := index[""][".go"]
+	if len(goRules) != 1 {
+		t.Fatalf("expected 1 go rule, got %d", len(goRules))
+	}
+	if goRules[0].GetErrorMessage() != new(rule.CamelCase).Init().GetErrorMessage() {
+		t.Fatalf("expected default rule error message, got %q", goRules[0].GetErrorMessage())
+	}
+}
+
 func TestShouldIgnore(t *testing.T) {
 	tests := []struct {
 		lslintConfig *Config
