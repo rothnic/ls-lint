@@ -38,9 +38,6 @@ Optional fields:
 - `change-approval`: who can approve changes to the ls-lint policy itself
 - `references`: extra docs or policy links to surface in the formatted output
 
-`policy-changes` remains supported as a compatibility alias, but
-`change-approval` is the clearer field name for new configs.
-
 When the structured form is used, ls-lint builds one readable context message
 from the populated fields and prepends it to each failing rule output.
 

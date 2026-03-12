@@ -49,7 +49,6 @@ type Context struct {
 	Environment    string   `yaml:"environment"`
 	Override       string   `yaml:"override"`
 	ChangeApproval string   `yaml:"change-approval"`
-	PolicyChanges  string   `yaml:"policy-changes"`
 	References     []string `yaml:"references"`
 }
 
@@ -151,7 +150,7 @@ func (context Context) GetMessage(name string) string {
 		sentences = append(sentences, fmt.Sprintf("Override approval: %s.", override))
 	}
 
-	if changeApproval := strings.TrimSpace(context.getChangeApproval()); changeApproval != "" {
+	if changeApproval := strings.TrimSpace(context.ChangeApproval); changeApproval != "" {
 		sentences = append(sentences, fmt.Sprintf("Change approval: %s.", changeApproval))
 	}
 
@@ -185,14 +184,6 @@ func (context Context) GetMessage(name string) string {
 	}
 
 	return strings.Join(sentences, " ")
-}
-
-func (context Context) getChangeApproval() string {
-	if changeApproval := strings.TrimSpace(context.ChangeApproval); changeApproval != "" {
-		return changeApproval
-	}
-
-	return strings.TrimSpace(context.PolicyChanges)
 }
 
 func (config *Config) GetContext(name string) (Context, bool) {

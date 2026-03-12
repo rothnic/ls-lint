@@ -227,17 +227,6 @@ contexts:
 			},
 		},
 		{
-			description: "Supports legacy policy changes key",
-			content: `
-contexts:
-  pre-commit:
-    policy-changes: repository owner approval
-`,
-			expected: Context{
-				PolicyChanges: "repository owner approval",
-			},
-		},
-		{
 			description: "allows empty structured mode",
 			content: `
 contexts:
@@ -295,9 +284,6 @@ contexts:
 			}
 			if context.ChangeApproval != test.expected.ChangeApproval {
 				t.Fatalf("expected change approval %q, got %q", test.expected.ChangeApproval, context.ChangeApproval)
-			}
-			if context.PolicyChanges != test.expected.PolicyChanges {
-				t.Fatalf("expected policy changes %q, got %q", test.expected.PolicyChanges, context.PolicyChanges)
 			}
 			if !reflect.DeepEqual(context.References, test.expected.References) {
 				t.Fatalf("expected references %+v, got %+v", test.expected.References, context.References)
