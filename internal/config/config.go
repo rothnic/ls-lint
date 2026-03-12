@@ -199,7 +199,7 @@ func (config *Config) walkIndex(index RuleIndex, key string, list Ls) error {
 				continue
 			}
 
-			return fmt.Errorf("rule %s not exists", ruleName)
+			return fmt.Errorf("rule %s does not exist", ruleName)
 		}
 	}
 
@@ -213,7 +213,7 @@ func parseRuleDefinition(ruleDefinition string) (string, []string, string, error
 	if index := strings.LastIndex(ruleDefinition, customMessageSep); index != -1 {
 		message = strings.TrimSpace(ruleDefinition[index+len(customMessageSep):])
 		if message == "" {
-			return "", nil, "", fmt.Errorf("rule %q has an empty custom message", ruleDefinition)
+			return "", nil, "", fmt.Errorf("rule definition %q has %q but the custom message is empty", ruleDefinition, customMessageSep)
 		}
 
 		ruleDefinition = strings.TrimSpace(ruleDefinition[:index])
@@ -222,7 +222,7 @@ func parseRuleDefinition(ruleDefinition string) (string, []string, string, error
 	ruleSplit := strings.SplitN(ruleDefinition, ":", 2)
 	ruleName := strings.TrimSpace(ruleSplit[0])
 	if ruleName == "" {
-		return "", nil, "", fmt.Errorf("rule %q not exists", ruleName)
+		return "", nil, "", fmt.Errorf("rule name is required")
 	}
 
 	return ruleName, ruleSplit[1:], message, nil
