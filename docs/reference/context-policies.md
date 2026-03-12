@@ -19,7 +19,7 @@ contexts:
     hook: pre-commit
     environment: local
     override: repository owner approval
-    policy-changes: repository owner approval
+    change-approval: repository owner approval
     references:
       - docs/contributing.md
       - docs/reference/repo-shape.md
@@ -35,8 +35,11 @@ Optional fields:
 - `hook`: associated git hook or enforcement stage
 - `environment`: local, CI, pre-merge, or any other short label
 - `override`: who can approve bypassing the context
-- `policy-changes`: who can approve changes to the ls-lint policy itself
+- `change-approval`: who can approve changes to the ls-lint policy itself
 - `references`: extra docs or policy links to surface in the formatted output
+
+`policy-changes` remains supported as a compatibility alias, but
+`change-approval` is the clearer field name for new configs.
 
 When the structured form is used, ls-lint builds one readable context message
 from the populated fields and prepends it to each failing rule output.
@@ -70,6 +73,10 @@ ls-lint --context pre-merge
 
 This keeps the stage policy in `.ls-lint.yml` while hook/CI config only selects
 which context to apply.
+
+The recommended hook shape is intentionally just `ls-lint --context <name>`.
+That path is covered by tests through the same context parsing, message
+formatting, and warn/block resolution behavior used by the CLI.
 
 ## Agent guardrails
 

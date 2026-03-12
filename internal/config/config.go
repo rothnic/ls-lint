@@ -43,13 +43,14 @@ type Config struct {
 }
 
 type Context struct {
-	Message       string   `yaml:"message"`
-	Mode          string   `yaml:"mode"`
-	Hook          string   `yaml:"hook"`
-	Environment   string   `yaml:"environment"`
-	Override      string   `yaml:"override"`
-	PolicyChanges string   `yaml:"policy-changes"`
-	References    []string `yaml:"references"`
+	Message        string   `yaml:"message"`
+	Mode           string   `yaml:"mode"`
+	Hook           string   `yaml:"hook"`
+	Environment    string   `yaml:"environment"`
+	Override       string   `yaml:"override"`
+	ChangeApproval string   `yaml:"change-approval"`
+	PolicyChanges  string   `yaml:"policy-changes"`
+	References     []string `yaml:"references"`
 }
 
 func NewConfig(ls Ls, ignore []string) *Config {
@@ -128,29 +129,30 @@ func (context Context) ShouldWarn() bool {
 
 func (context Context) GetMessage(name string) string {
 	message := strings.TrimSpace(context.Message)
-	clauses := make([]string, 0, 6)
-
-	if hook := strings.TrimSpace(context.Hook); hook != "" {
-		clauses = append(clauses, fmt.Sprintf("hook: %s", hook))
-	}
-
-	if environment := strings.TrimSpace(context.Environment); environment != "" {
-		clauses = append(clauses, fmt.Sprintf("environment: %s", environment))
-	}
+	sentences := make([]string, 0, 5)
+	summaryParts := make([]string, 0, 3)
 
 	switch context.Mode {
 	case ContextModeWarn:
-		clauses = append(clauses, "enforcement: warning")
+		summaryParts = append(summaryParts, "warning")
 	case ContextModeFail:
-		clauses = append(clauses, "enforcement: blocking")
+		summaryParts = append(summaryParts, "blocking")
+	}
+
+	if hook := strings.TrimSpace(context.Hook); hook != "" {
+		summaryParts = append(summaryParts, fmt.Sprintf("%s hook", hook))
+	}
+
+	if environment := strings.TrimSpace(context.Environment); environment != "" {
+		summaryParts = append(summaryParts, fmt.Sprintf("%s environment", environment))
 	}
 
 	if override := strings.TrimSpace(context.Override); override != "" {
-		clauses = append(clauses, fmt.Sprintf("overrides: %s", override))
+		sentences = append(sentences, fmt.Sprintf("Override approval: %s.", override))
 	}
 
-	if policyChanges := strings.TrimSpace(context.PolicyChanges); policyChanges != "" {
-		clauses = append(clauses, fmt.Sprintf("ls-lint policy changes: %s", policyChanges))
+	if changeApproval := strings.TrimSpace(context.getChangeApproval()); changeApproval != "" {
+		sentences = append(sentences, fmt.Sprintf("Change approval: %s.", changeApproval))
 	}
 
 	references := make([]string, 0, len(context.References))
@@ -161,10 +163,10 @@ func (context Context) GetMessage(name string) string {
 		}
 	}
 	if len(references) > 0 {
-		clauses = append(clauses, fmt.Sprintf("references: %s", strings.Join(references, ", ")))
+		sentences = append(sentences, fmt.Sprintf("References: %s.", strings.Join(references, ", ")))
 	}
 
-	if len(clauses) == 0 {
+	if len(summaryParts) == 0 && len(sentences) == 0 {
 		return message
 	}
 
@@ -172,12 +174,25 @@ func (context Context) GetMessage(name string) string {
 		name = "context"
 	}
 
-	prefix := fmt.Sprintf("Context `%s` (%s).", name, strings.Join(clauses, "; "))
-	if message == "" {
-		return prefix
+	if len(summaryParts) > 0 {
+		sentences = append([]string{fmt.Sprintf("Context `%s`: %s.", name, strings.Join(summaryParts, ", "))}, sentences...)
+	} else {
+		sentences = append([]string{fmt.Sprintf("Context `%s`.", name)}, sentences...)
 	}
 
-	return fmt.Sprintf("%s %s", prefix, message)
+	if message != "" {
+		sentences = append(sentences, message)
+	}
+
+	return strings.Join(sentences, " ")
+}
+
+func (context Context) getChangeApproval() string {
+	if changeApproval := strings.TrimSpace(context.ChangeApproval); changeApproval != "" {
+		return changeApproval
+	}
+
+	return strings.TrimSpace(context.PolicyChanges)
 }
 
 func (config *Config) GetContext(name string) (Context, bool) {

@@ -148,20 +148,20 @@ func TestGetContextMessage(t *testing.T) {
 				config := NewConfig(nil, nil)
 				config.Contexts = map[string]Context{
 					"pre-push": {
-						Message:       "Resolve these failures before pushing or get explicit approval.",
-						Mode:          ContextModeFail,
-						Hook:          "pre-push",
-						Environment:   "local",
-						Override:      "repository owner approval",
-						PolicyChanges: "repository owner approval",
-						References:    []string{"docs/reference/context-policies.md"},
+						Message:        "Resolve these failures before pushing or get explicit approval.",
+						Mode:           ContextModeFail,
+						Hook:           "pre-push",
+						Environment:    "local",
+						Override:       "repository owner approval",
+						ChangeApproval: "repository owner approval",
+						References:     []string{"docs/reference/context-policies.md"},
 					},
 				}
 
 				return config
 			}(),
-			context: "pre-push",
-			expectedMessage: "Context `pre-push` (hook: pre-push; environment: local; enforcement: blocking; overrides: repository owner approval; ls-lint policy changes: repository owner approval; references: docs/reference/context-policies.md). Resolve these failures before pushing or get explicit approval.",
+			context:         "pre-push",
+			expectedMessage: "Context `pre-push`: blocking, pre-push hook, local environment. Override approval: repository owner approval. Change approval: repository owner approval. References: docs/reference/context-policies.md. Resolve these failures before pushing or get explicit approval.",
 			expectedFound:   true,
 		},
 		{
@@ -209,20 +209,31 @@ contexts:
     hook: pre-commit
     environment: local
     override: repository owner approval
-    policy-changes: repository owner approval
+    change-approval: repository owner approval
     references:
       - docs/contributing.md
     message: >
       Treat these failures as early warnings.
 `,
 			expected: Context{
-				Message:       "Treat these failures as early warnings.\n",
-				Mode:          ContextModeWarn,
-				Hook:          "pre-commit",
-				Environment:   "local",
-				Override:      "repository owner approval",
+				Message:        "Treat these failures as early warnings.\n",
+				Mode:           ContextModeWarn,
+				Hook:           "pre-commit",
+				Environment:    "local",
+				Override:       "repository owner approval",
+				ChangeApproval: "repository owner approval",
+				References:     []string{"docs/contributing.md"},
+			},
+		},
+		{
+			description: "supports legacy policy changes key",
+			content: `
+contexts:
+  pre-commit:
+    policy-changes: repository owner approval
+`,
+			expected: Context{
 				PolicyChanges: "repository owner approval",
-				References:    []string{"docs/contributing.md"},
 			},
 		},
 		{
@@ -281,6 +292,9 @@ contexts:
 			if context.Override != test.expected.Override {
 				t.Fatalf("expected override %q, got %q", test.expected.Override, context.Override)
 			}
+			if context.ChangeApproval != test.expected.ChangeApproval {
+				t.Fatalf("expected change approval %q, got %q", test.expected.ChangeApproval, context.ChangeApproval)
+			}
 			if context.PolicyChanges != test.expected.PolicyChanges {
 				t.Fatalf("expected policy changes %q, got %q", test.expected.PolicyChanges, context.PolicyChanges)
 			}
@@ -288,6 +302,45 @@ contexts:
 				t.Fatalf("expected references %+v, got %+v", test.expected.References, context.References)
 			}
 		})
+	}
+}
+
+func TestDocumentedHookContextBehavior(t *testing.T) {
+	lslintConfig := NewConfig(nil, nil)
+	content := []byte(`
+contexts:
+  pre-commit:
+    mode: warn
+    hook: pre-commit
+    environment: local
+    override: repository owner approval
+    change-approval: repository owner approval
+    references:
+      - docs/reference/context-policies.md
+    message: >
+      Treat these failures as early warnings about repository structure and
+      naming so they can be fixed before push.
+`)
+
+	if err := yaml.Unmarshal(content, lslintConfig); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	context, found := lslintConfig.GetContext("pre-commit")
+	if !found {
+		t.Fatalf("expected pre-commit context to be found")
+	}
+	if !context.ShouldWarn() {
+		t.Fatalf("expected pre-commit context to resolve to warn mode")
+	}
+
+	message, found := lslintConfig.GetContextMessage("pre-commit")
+	if !found {
+		t.Fatalf("expected pre-commit context message to be found")
+	}
+	expected := "Context `pre-commit`: warning, pre-commit hook, local environment. Override approval: repository owner approval. Change approval: repository owner approval. References: docs/reference/context-policies.md. Treat these failures as early warnings about repository structure and naming so they can be fixed before push."
+	if message != expected {
+		t.Fatalf("expected message %q, got %q", expected, message)
 	}
 }
 
