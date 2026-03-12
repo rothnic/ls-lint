@@ -46,6 +46,46 @@ default, so hook commands do not need to repeat that policy. Explicit
 `--warn` or `--warn=false` still wins if you need to override the selected
 context.
 
+## Example formatted output
+
+Text output keeps the normal `path failed for \`rule-key\` rules:` shape and
+prepends the rendered context policy once before the failing rule messages.
+
+With this config:
+
+```yaml
+ls:
+  .png: snake_case => PNG files must use snake_case before pushing
+  packages/*:
+    README.md: exists:1 => Each package must include README.md before merging
+
+contexts:
+  pre-commit:
+    mode: warn
+    hook: pre-commit
+    environment: local
+    override: repository owner approval
+    change-approval: repository owner approval
+    references:
+      - docs/reference/context-policies.md
+    message: >
+      Treat these failures as early warnings about repository structure and
+      naming so they can be fixed before push.
+```
+
+A filename rule failure looks like:
+
+```text
+not-snake-case.png failed for `.png` rules: Context `pre-commit`: warning, pre-commit hook, local environment. Override approval: repository owner approval. Change approval: repository owner approval. References: docs/reference/context-policies.md. Treat these failures as early warnings about repository structure and naming so they can be fixed before push. | PNG files must use snake_case before pushing
+```
+
+A directory-scoped `exists` failure keeps the same context prefix and then adds
+the underlying rule details:
+
+```text
+packages/example failed for `README.md` rules: Context `pre-commit`: warning, pre-commit hook, local environment. Override approval: repository owner approval. Change approval: repository owner approval. References: docs/reference/context-policies.md. Treat these failures as early warnings about repository structure and naming so they can be fixed before push. | exists:1-32767 (found 0) | Each package must include README.md before merging
+```
+
 ## Hook and CI examples
 
 With `mode` embedded in the context, a hook can stay small:
