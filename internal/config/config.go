@@ -10,6 +10,7 @@ import (
 
 	"github.com/bmatcuk/doublestar/v4"
 	"github.com/loeffel-io/ls-lint/v2/internal/rule"
+	"go.yaml.in/yaml/v3"
 )
 
 type (
@@ -29,11 +30,26 @@ const (
 
 var ErrInvalidIgnorePattern = errors.New("invalid ignore pattern")
 
+const (
+	ContextModeWarn = "warn"
+	ContextModeFail = "fail"
+)
+
 type Config struct {
-	Ls       Ls                `yaml:"ls"`
-	Ignore   []string          `yaml:"ignore"`
-	Contexts map[string]string `yaml:"contexts"`
+	Ls       Ls                 `yaml:"ls"`
+	Ignore   []string           `yaml:"ignore"`
+	Contexts map[string]Context `yaml:"contexts"`
 	*sync.RWMutex
+}
+
+type Context struct {
+	Message       string   `yaml:"message"`
+	Mode          string   `yaml:"mode"`
+	Hook          string   `yaml:"hook"`
+	Environment   string   `yaml:"environment"`
+	Override      string   `yaml:"override"`
+	PolicyChanges string   `yaml:"policy-changes"`
+	References    []string `yaml:"references"`
 }
 
 func NewConfig(ls Ls, ignore []string) *Config {
@@ -65,17 +81,131 @@ func MergeIgnore(current []string, additional []string) []string {
 	return slices.Compact(current)
 }
 
-func (config *Config) GetContextMessage(name string) (string, bool) {
+func (context *Context) UnmarshalYAML(node *yaml.Node) error {
+	switch node.Kind {
+	case yaml.ScalarNode:
+		var message string
+		if err := node.Decode(&message); err != nil {
+			return err
+		}
+
+		context.Message = message
+		context.Mode = ""
+		context.Hook = ""
+		context.Environment = ""
+		context.Override = ""
+		context.PolicyChanges = ""
+		context.References = nil
+		return nil
+	case yaml.MappingNode:
+		type rawContext Context
+
+		var raw rawContext
+		if err := node.Decode(&raw); err != nil {
+			return err
+		}
+
+		mode, err := normalizeContextMode(raw.Mode)
+		if err != nil {
+			return err
+		}
+
+		*context = Context(raw)
+		context.Mode = mode
+		return nil
+	default:
+		return fmt.Errorf("context must be a string or mapping, got yaml kind %d", node.Kind)
+	}
+}
+
+func normalizeContextMode(mode string) (string, error) {
+	mode = strings.TrimSpace(strings.ToLower(mode))
+	switch mode {
+	case "", ContextModeWarn, ContextModeFail:
+		return mode, nil
+	default:
+		return "", fmt.Errorf("context mode %q is invalid, expected %q or %q", mode, ContextModeWarn, ContextModeFail)
+	}
+}
+
+func (context Context) ShouldWarn() bool {
+	return strings.TrimSpace(strings.ToLower(context.Mode)) == ContextModeWarn
+}
+
+func (context Context) GetMessage(name string) string {
+	message := strings.TrimSpace(context.Message)
+	clauses := make([]string, 0, 6)
+
+	if hook := strings.TrimSpace(context.Hook); hook != "" {
+		clauses = append(clauses, fmt.Sprintf("hook: %s", hook))
+	}
+
+	if environment := strings.TrimSpace(context.Environment); environment != "" {
+		clauses = append(clauses, fmt.Sprintf("environment: %s", environment))
+	}
+
+	switch strings.TrimSpace(strings.ToLower(context.Mode)) {
+	case ContextModeWarn:
+		clauses = append(clauses, "enforcement: warning")
+	case ContextModeFail:
+		clauses = append(clauses, "enforcement: blocking")
+	}
+
+	if override := strings.TrimSpace(context.Override); override != "" {
+		clauses = append(clauses, fmt.Sprintf("overrides: %s", override))
+	}
+
+	if policyChanges := strings.TrimSpace(context.PolicyChanges); policyChanges != "" {
+		clauses = append(clauses, fmt.Sprintf("ls-lint policy changes: %s", policyChanges))
+	}
+
+	references := make([]string, 0, len(context.References))
+	for _, reference := range context.References {
+		reference = strings.TrimSpace(reference)
+		if reference != "" {
+			references = append(references, reference)
+		}
+	}
+	if len(references) > 0 {
+		clauses = append(clauses, fmt.Sprintf("references: %s", strings.Join(references, ", ")))
+	}
+
+	if len(clauses) == 0 {
+		return message
+	}
+
+	if name == "" {
+		name = "context"
+	}
+
+	prefix := fmt.Sprintf("Context `%s` (%s).", name, strings.Join(clauses, "; "))
+	if message == "" {
+		return prefix
+	}
+
+	return fmt.Sprintf("%s %s", prefix, message)
+}
+
+func (config *Config) GetContext(name string) (Context, bool) {
 	config.RLock()
 	defer config.RUnlock()
 
 	if name == "" {
+		return Context{}, false
+	}
+
+	context, exists := config.Contexts[name]
+
+	return context, exists
+}
+
+func (config *Config) GetContextMessage(name string) (string, bool) {
+	context, exists := config.GetContext(name)
+	if !exists {
 		return "", false
 	}
 
-	message, exists := config.Contexts[name]
-
-	return message, exists
+	return context.GetMessage(name), true
 }
 
 func (config *Config) GetIgnoreIndex() (*IgnoreIndex, error) {

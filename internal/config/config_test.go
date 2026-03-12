@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/loeffel-io/ls-lint/v2/internal/rule"
+	"go.yaml.in/yaml/v3"
 )
 
 func TestGetConfig(t *testing.T) {
@@ -129,14 +130,38 @@ func TestGetContextMessage(t *testing.T) {
 			description: "returns selected context message",
 			config: func() *Config {
 				config := NewConfig(nil, nil)
-				config.Contexts = map[string]string{
-					"pre-commit": "Pre-commit failures are warnings about project shape and naming requirements.",
+				config.Contexts = map[string]Context{
+					"pre-commit": {
+						Message: "Pre-commit failures are warnings about project shape and naming requirements.",
+					},
 				}
 
 				return config
 			}(),
 			context:         "pre-commit",
 			expectedMessage: "Pre-commit failures are warnings about project shape and naming requirements.",
+			expectedFound:   true,
+		},
+		{
+			description: "formats structured context policy details",
+			config: func() *Config {
+				config := NewConfig(nil, nil)
+				config.Contexts = map[string]Context{
+					"pre-push": {
+						Message:       "Resolve these failures before pushing or get explicit approval.",
+						Mode:          ContextModeFail,
+						Hook:          "pre-push",
+						Environment:   "local",
+						Override:      "repository owner approval",
+						PolicyChanges: "repository owner approval",
+						References:    []string{"docs/reference/context-policies.md"},
+					},
+				}
+
+				return config
+			}(),
+			context: "pre-push",
+			expectedMessage: "Context `pre-push` (hook: pre-push; environment: local; enforcement: blocking; overrides: repository owner approval; ls-lint policy changes: repository owner approval; references: docs/reference/context-policies.md). Resolve these failures before pushing or get explicit approval.",
 			expectedFound:   true,
 		},
 		{
@@ -155,6 +180,84 @@ func TestGetContextMessage(t *testing.T) {
 		if message != test.expectedMessage {
 			t.Fatalf("%s: expected message %q, got %q", test.description, test.expectedMessage, message)
 		}
+	}
+}
+
+func TestContext_UnmarshalYAML(t *testing.T) {
+	tests := []struct {
+		description   string
+		content       string
+		expected      Context
+		expectedError string
+	}{
+		{
+			description: "supports scalar context values",
+			content: `
+contexts:
+  pre-commit: Commit is not blocked. Treat these failures as warnings.
+`,
+			expected: Context{
+				Message: "Commit is not blocked. Treat these failures as warnings.",
+			},
+		},
+		{
+			description: "supports structured context values",
+			content: `
+contexts:
+  pre-commit:
+    mode: warn
+    hook: pre-commit
+    environment: local
+    override: repository owner approval
+    policy-changes: repository owner approval
+    references:
+      - docs/contributing.md
+    message: >
+      Treat these failures as early warnings.
+`,
+			expected: Context{
+				Message:       "Treat these failures as early warnings.\n",
+				Mode:          ContextModeWarn,
+				Hook:          "pre-commit",
+				Environment:   "local",
+				Override:      "repository owner approval",
+				PolicyChanges: "repository owner approval",
+				References:    []string{"docs/contributing.md"},
+			},
+		},
+		{
+			description: "rejects invalid structured mode",
+			content: `
+contexts:
+  pre-commit:
+    mode: maybe
+`,
+			expectedError: `context mode "maybe" is invalid, expected "warn" or "fail"`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.description, func(t *testing.T) {
+			config := NewConfig(nil, nil)
+			err := yaml.Unmarshal([]byte(test.content), config)
+			if test.expectedError != "" {
+				if err == nil || err.Error() != test.expectedError {
+					t.Fatalf("expected error %q, got %v", test.expectedError, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("expected no error, got %v", err)
+			}
+
+			context, found := config.GetContext("pre-commit")
+			if !found {
+				t.Fatalf("expected context to be found")
+			}
+			if !reflect.DeepEqual(context, test.expected) {
+				t.Fatalf("expected context %+v, got %+v", test.expected, context)
+			}
+		})
 	}
 }
 

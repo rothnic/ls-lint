@@ -5,6 +5,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/loeffel-io/ls-lint/v2/internal/config"
 	"github.com/loeffel-io/ls-lint/v2/internal/rule"
 )
 
@@ -95,6 +96,57 @@ func TestGetRuleMessages(t *testing.T) {
 			messages := getRuleMessages(test.ruleErr, test.contextMessage)
 			if !reflect.DeepEqual(messages, test.expected) {
 				t.Fatalf("expected %+v, got %+v", test.expected, messages)
+			}
+		})
+	}
+}
+
+func TestResolveWarn(t *testing.T) {
+	tests := []struct {
+		description  string
+		flagWarn     bool
+		warnExplicit bool
+		context      config.Context
+		expected     bool
+	}{
+		{
+			description: "uses context warn mode when flag is not set",
+			context: config.Context{
+				Mode: config.ContextModeWarn,
+			},
+			expected: true,
+		},
+		{
+			description: "keeps blocking mode when no warn source is set",
+			context: config.Context{
+				Mode: config.ContextModeFail,
+			},
+			expected: false,
+		},
+		{
+			description:  "explicit warn flag overrides blocking context",
+			flagWarn:     true,
+			warnExplicit: true,
+			context: config.Context{
+				Mode: config.ContextModeFail,
+			},
+			expected: true,
+		},
+		{
+			description:  "explicit false warn flag overrides warning context",
+			flagWarn:     false,
+			warnExplicit: true,
+			context: config.Context{
+				Mode: config.ContextModeWarn,
+			},
+			expected: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.description, func(t *testing.T) {
+			if actual := resolveWarn(test.flagWarn, test.warnExplicit, test.context); actual != test.expected {
+				t.Fatalf("expected %t, got %t", test.expected, actual)
 			}
 		})
 	}

@@ -72,5 +72,8 @@ go_test(
     name = "ls_lint_test",
     srcs = ["main_test.go"],
     embed = [":ls_lint_lib"],
-    deps = ["//internal/rule"],
+    deps = [
+        "//internal/config",
+        "//internal/rule",
+    ],
 )

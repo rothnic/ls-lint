@@ -162,20 +162,22 @@ required for this exact policy shape.
 `exists:0-1` is the correct way to express “optional, but at most one”.
 
 Rules can also add optional feedback with `=>`, and configs can define optional
-`contexts:` messages selected with `--context`:
+`contexts:` selected with `--context`:
 
 ```yaml
 ls:
   .png: snake_case => PNG files must use snake_case before pushing
 
 contexts:
-  pre-commit: Commit is not blocked. Treat these failures as warnings.
-  pre-push: Push is blocked until these failures are resolved.
+  pre-commit:
+    mode: warn
+    message: Commit is not blocked. Treat these failures as warnings.
 ```
 
-This keeps one structural policy while varying stage-specific guidance, for
-example `ls-lint --context pre-commit --warn` locally and `ls-lint --context
-pre-push` in stricter hooks. See
+This keeps one structural policy while varying stage-specific guidance, and the
+selected context can also carry its own warn/fail default. See
+[`docs/reference/context-policies.md`](docs/reference/context-policies.md) for
+structured context fields and hook examples, and
 [`docs/reference/future-content-rules.md`](docs/reference/future-content-rules.md)
 for forward-looking notation notes.
 
