@@ -198,49 +198,11 @@ The selected context message is prepended to each failing rule output, so you ca
 keep the structural rules in one place and vary only the stage-specific guidance
 for each hook or CI job.
 
-### Future direction for content-aware rules
-
-The current rule grammar is already a good fit for future high-level content and
-organization constraints because it keeps everything in the same rule slot:
-
-```text
-<rule>[:params] => <custom message>
-```
-
-That means future file-content checks do not need a new top-level config block or
-a replacement for `=>`. A backward-compatible direction is to reserve a generic
-`content` rule namespace and continue composing checks with the existing ` | `
-separator.
-
-For example, a later PR could add rules shaped like:
-
-```yaml
-ls:
-  docs/guides:
-    .md: kebab-case | content:max-lines:250 | content:front-matter:required | content:heading:^## Overview$
-  components/*:
-    .tsx: PascalCase | content:max-lines:300 | content:contains:${parent_pascal}
-```
-
-This keeps the notation aligned with the first two layers that ls-lint already
-owns:
-
-- **structure**: where files live and what they are named
-- **organization**: high-level requirements inside matching files
-- **formatting**: still left to specialized language formatters and linters
-
-Using a rule namespace instead of a separate config section also leaves room for
-checks that need both file metadata and file contents, for example:
-
-- line-count and line-length nudges
-- required front matter blocks
-- required headings in markdown files
-- “must contain a pattern related to the parent folder or file basename”
-- “must define exactly one top-level component matching the file/folder shape”
-
-This is intentionally not implemented yet. The design goal is simply to reserve
-a compatible path so future content-aware rules can land without changing the
-existing `=>` feedback syntax or the way multiple constraints are combined.
+If future content-aware checks are added, the goal is to keep them compatible
+with the existing `rule[:params] => message` and ` | ` composition syntax rather
+than expanding the README with design notes. See
+[`docs/reference/future-content-rules.md`](docs/reference/future-content-rules.md)
+for the current notation sketch.
 
 ### Result
 
