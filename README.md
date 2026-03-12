@@ -161,8 +161,8 @@ required for this exact policy shape.
 
 `exists:0-1` is the correct way to express “optional, but at most one”.
 
-You can also add optional rule-specific feedback with ` => ` so failures explain the
-intent directly:
+You can also add optional rule-specific feedback using the separator `=>` (with
+spaces on both sides) so failures explain the intent directly:
 
 ```yaml
 ls:

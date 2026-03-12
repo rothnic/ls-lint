@@ -8,7 +8,6 @@ import (
 	"maps"
 	"os"
 	"runtime"
-	"slices"
 	"strings"
 
 	"github.com/loeffel-io/ls-lint/v2/internal/config"
@@ -71,7 +70,7 @@ func main() {
 	}
 
 	lslintConfig := config.NewConfig(make(config.Ls), make([]string, 0))
-	contextFound := *flagContext == ""
+	contextAppliedOrNotRequired := *flagContext == ""
 	for _, c := range flagConfig {
 		tmpLslintConfig := config.NewConfig(nil, nil)
 		var tmpConfigBytes []byte
@@ -90,16 +89,14 @@ func main() {
 				log.Fatal(err)
 			}
 
-			contextFound = contextFound || applied
+			contextAppliedOrNotRequired = contextAppliedOrNotRequired || applied
 		}
 
 		maps.Copy(lslintConfig.GetLs(), tmpLslintConfig.GetLs())
-		lslintConfig.Ignore = append(lslintConfig.Ignore, tmpLslintConfig.GetIgnore()...)
-		slices.Sort(lslintConfig.Ignore)
-		lslintConfig.Ignore = slices.Compact(lslintConfig.Ignore)
+		lslintConfig.Ignore = config.MergeIgnore(lslintConfig.Ignore, tmpLslintConfig.GetIgnore())
 	}
 
-	if !contextFound {
+	if *flagContext != "" && !contextAppliedOrNotRequired {
 		log.Fatalf("context %q does not exist in the provided config file(s)", *flagContext)
 	}
 

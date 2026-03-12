@@ -1484,8 +1484,8 @@ func TestLinter_Run(t *testing.T) {
 					compareRuleParameters = false
 				}
 
-				_, expectedRuleHasCustomFeedback := expectedRule.(*rule.Feedback)
-				shouldCompareErrorMessage := tmpRule.GetName() != "exists" || expectedRuleHasCustomFeedback
+				_, hasCustomFeedback := expectedRule.(*rule.Feedback)
+				shouldCompareErrorMessage := tmpRule.GetName() != "exists" || hasCustomFeedback
 				if shouldCompareErrorMessage {
 					if tmpRule.GetErrorMessage() != expectedRule.GetErrorMessage() {
 						t.Error(equalErrorsErr)

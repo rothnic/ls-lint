@@ -84,11 +84,16 @@ func (config *Config) ApplyContext(name string) (bool, error) {
 		maps.Copy(config.Ls, context.Ls)
 	}
 
-	config.Ignore = append(config.Ignore, context.Ignore...)
-	slices.Sort(config.Ignore)
-	config.Ignore = slices.Compact(config.Ignore)
+	config.Ignore = MergeIgnore(config.Ignore, context.Ignore)
 
 	return true, nil
+}
+
+func MergeIgnore(current []string, additional []string) []string {
+	current = append(current, additional...)
+	slices.Sort(current)
+
+	return slices.Compact(current)
 }
 
 func (config *Config) GetIgnoreIndex() (*IgnoreIndex, error) {
@@ -248,7 +253,7 @@ func parseRuleDefinition(ruleDefinition string) (string, []string, string, error
 	if index := strings.LastIndex(ruleDefinition, customMessageSep); index != -1 {
 		message = strings.TrimSpace(ruleDefinition[index+len(customMessageSep):])
 		if message == "" {
-			return "", nil, "", fmt.Errorf("rule definition %q has %q but the custom message is empty", ruleDefinition, customMessageSep)
+			return "", nil, "", fmt.Errorf("custom message separator found but message text is empty in rule definition %q", ruleDefinition)
 		}
 
 		ruleDefinition = strings.TrimSpace(ruleDefinition[:index])
@@ -257,7 +262,7 @@ func parseRuleDefinition(ruleDefinition string) (string, []string, string, error
 	ruleSplit := strings.SplitN(ruleDefinition, ":", 2)
 	ruleName := strings.TrimSpace(ruleSplit[0])
 	if ruleName == "" {
-		return "", nil, "", fmt.Errorf("rule name is required")
+		return "", nil, "", fmt.Errorf("rule name is required, got empty string from definition %q", ruleDefinition)
 	}
 
 	return ruleName, ruleSplit[1:], message, nil
