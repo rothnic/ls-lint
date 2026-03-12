@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/loeffel-io/ls-lint/v2/internal/rule"
@@ -226,7 +227,7 @@ contexts:
 			},
 		},
 		{
-			description: "supports legacy policy changes key",
+			description: "Supports legacy policy changes key",
 			content: `
 contexts:
   pre-commit:
@@ -338,7 +339,13 @@ contexts:
 	if !found {
 		t.Fatalf("expected pre-commit context message to be found")
 	}
-	expected := "Context `pre-commit`: warning, pre-commit hook, local environment. Override approval: repository owner approval. Change approval: repository owner approval. References: docs/reference/context-policies.md. Treat these failures as early warnings about repository structure and naming so they can be fixed before push."
+	expected := strings.Join([]string{
+		"Context `pre-commit`: warning, pre-commit hook, local environment.",
+		"Override approval: repository owner approval.",
+		"Change approval: repository owner approval.",
+		"References: docs/reference/context-policies.md.",
+		"Treat these failures as early warnings about repository structure and naming so they can be fixed before push.",
+	}, " ")
 	if message != expected {
 		t.Fatalf("expected message %q, got %q", expected, message)
 	}
