@@ -1,0 +1,68 @@
+# Markdown structure validation example.
+#
+# This config enforces that documentation files follow a specific structural
+# contract: YAML front matter with required keys, and headings in a defined
+# order. It is a good starting point for any project where documentation
+# quality matters — for example, a component library, an internal wiki, or
+# an AI agent skill repository.
+#
+# What is enforced:
+#   1. All .md files under docs/ must be kebab-case named.
+#   2. Each file must have YAML front matter (---...--- at the top).
+#   3. Each file must contain an ## Overview heading.
+#   4. Each file must contain a ## Usage heading.
+#   5. Each file must contain a ## Examples heading.
+#   6. Files must not exceed 300 lines.
+#
+# The heading rules fire independently, so a file that has ## Overview but is
+# missing ## Usage will produce a separate violation for each missing heading.
+# Headings are matched against the full line (including the leading ## prefix)
+# using Go regex syntax.
+#
+# Front matter requirements:
+#   content:front-matter:required checks that the file opens with --- and
+#   closes with another --- before the first non-empty line, and that the
+#   block is not empty or whitespace-only. It does NOT validate the key names
+#   inside the block — that level of validation is outside ls-lint's scope and
+#   is better handled by a dedicated YAML schema linter.
+#
+# To also enforce that specific keys like `title` and `description` are
+# present, combine this rule with a schema validation step in CI.
+
+groups:
+  # Shared doc policy: front matter, section headings in the expected order,
+  # and a line limit to keep pages scannable.
+  doc-page:
+    - "kebab-case"
+    - "content:front-matter:required"
+    - "content:max-lines:300"
+    - "content:heading:^## Overview$"
+    - "content:heading:^## Usage$"
+    - "content:heading:^## Examples$"
+
+  # Reference pages tend to be longer and may omit a Usage section.
+  doc-reference:
+    - "kebab-case"
+    - "content:front-matter:required"
+    - "content:max-lines:600"
+    - "content:heading:^## Overview$"
+    - "content:heading:^## Examples$"
+
+ls:
+  # Top-level docs directory: all pages follow the full doc-page contract.
+  docs:
+    .md: "@doc-page"
+    .dir: kebab-case
+
+  # Reference section: longer limit, no Usage heading required.
+  docs/reference:
+    .md: "@doc-reference"
+
+  # Top-level markdown files (README, AGENTS, etc.): naming only.
+  .md: regex:^(README|AGENTS|CLAUDE|GEMINI|CONTRIBUTING|CHANGELOG)$
+
+ignore:
+  - node_modules
+  - dist
+  - .next
+  - build
