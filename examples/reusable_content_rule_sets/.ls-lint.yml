@@ -1,0 +1,35 @@
+groups:
+  js-names: "camelCase | PascalCase"
+  js-defaults:
+    - "@js-names"
+    - content:max-lines:400
+  js-large:
+    - "@js-names"
+    - content:max-lines:800
+
+ls:
+  # Shared defaults for application code.
+  .js: "@js-defaults"
+  .jsx: "@js-defaults"
+  .ts: "@js-defaults"
+  .tsx: "@js-defaults"
+
+  # Override only the content rule by keeping the naming rules and raising the
+  # max-lines limit in a more specific path.
+  generated:
+    .js: "@js-large"
+    .jsx: "@js-large"
+    .ts: "@js-large"
+    .tsx: "@js-large"
+
+  # Drop the max-lines check in vendor code while keeping the naming policy.
+  vendor:
+    .js: "@js-names"
+    .jsx: "@js-names"
+    .ts: "@js-names"
+    .tsx: "@js-names"
+
+ignore:
+  # If you need to disable ls-lint entirely for a path, ignore it explicitly.
+  - node_modules
+  - dist

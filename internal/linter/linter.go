@@ -165,7 +165,7 @@ func (linter *Linter) validateDir(index config.RuleIndex, path string, validate 
 	return indexDir, ruleKey, nil
 }
 
-func (linter *Linter) validateFile(index config.RuleIndex, path string, validate bool) (string, string, error) {
+func (linter *Linter) validateFile(filesystem fs.FS, index config.RuleIndex, path string, validate bool) (string, string, error) {
 	var ext string
 	g := new(errgroup.Group)
 
@@ -218,7 +218,18 @@ func (linter *Linter) validateFile(index config.RuleIndex, path string, validate
 		return indexDir, ext, nil
 	}
 
+	var regularRules []rule.Rule
+	var contentRules []rule.ContentRule
 	for _, ruleFile := range rules[ext] {
+		if contentRule, ok := ruleFile.(rule.ContentRule); ok {
+			if validate {
+				contentRules = append(contentRules, contentRule)
+			}
+			continue
+		}
+
+		regularRules = append(regularRules, ruleFile)
+
 		if !validate && ruleFile.GetName() != "exists" {
 			continue
 		}
@@ -250,6 +261,42 @@ func (linter *Linter) validateFile(index config.RuleIndex, path string, validate
 		return indexDir, ext, err
 	}
 
+	if len(contentRules) > 0 {
+		fileContent, err := fs.ReadFile(filesystem, path)
+		if err != nil {
+			return indexDir, ext, err
+		}
+
+		preparedContentOptions := rule.PreparedContentOptions{}
+		for _, contentRule := range contentRules {
+			ruleOptions := contentRule.GetPreparedContentOptions()
+			preparedContentOptions.MaxLineLength = preparedContentOptions.MaxLineLength || ruleOptions.MaxLineLength
+			preparedContentOptions.FrontMatter = preparedContentOptions.FrontMatter || ruleOptions.FrontMatter
+		}
+
+		preparedContent := rule.NewPreparedContent(fileContent, preparedContentOptions)
+		failedContentRules := make([]rule.Rule, 0)
+		for _, contentRule := range contentRules {
+			valid, err := contentRule.ValidatePreparedContent(preparedContent, path)
+			if err != nil {
+				return indexDir, ext, err
+			}
+			if !valid {
+				failedContentRules = append(failedContentRules, contentRule.Copy())
+			}
+		}
+
+		if len(failedContentRules) > 0 {
+			linter.AddError(&rule.Error{
+				Path:    path,
+				Dir:     false,
+				Ext:     ext,
+				Rules:   failedContentRules,
+				RWMutex: new(sync.RWMutex),
+			})
+		}
+	}
+
 	if !validate || rulesNonExclusiveError == 0 || rulesNonExclusiveError != rulesNonExclusiveCount {
 		return indexDir, ext, nil
 	}
@@ -258,7 +305,7 @@ func (linter *Linter) validateFile(index config.RuleIndex, path string, validate
 		Path:    path,
 		Dir:     false,
 		Ext:     ext,
-		Rules:   rules[ext],
+		Rules:   regularRules,
 		RWMutex: new(sync.RWMutex),
 	})
 
@@ -392,7 +439,7 @@ func (linter *Linter) Run(filesystem fs.FS, paths map[string]struct{}, debug boo
 			linter.GetStatistics().AddFile()
 		}
 
-		if indexDir, ext, err = linter.validateFile(index, path, validate); err != nil {
+		if indexDir, ext, err = linter.validateFile(filesystem, index, path, validate); err != nil {
 			return err
 		}
 

@@ -161,6 +161,63 @@ required for this exact policy shape.
 
 `exists:0-1` is the correct way to express “optional, but at most one”.
 
+Matched files can also validate lightweight content structure with `content`:
+
+- `content:max-lines:<n>` - maximum number of lines
+- `content:max-line-length:<n>` - maximum line length in runes
+- `content:heading:<regex>` - require at least one matching heading line
+- `content:front-matter:required` - require YAML front matter at the top of the file
+
+```yaml
+ls:
+  docs:
+    .md: kebab-case | content:max-lines:250 | content:heading:^## Overview$ | content:front-matter:required
+```
+
+To keep a repeated content rule set concise across several extensions, you can
+define reusable rule groups once and reference them from `ls:`. The shorter
+`groups:` alias is supported alongside `rule-groups:`, and you can reference a
+group with either `group:<name>` or the compact `@<name>` form. Groups can also
+reuse other groups to avoid repeating shared naming rules:
+
+```yaml
+groups:
+  js-names: "camelCase | PascalCase"
+  js-defaults:
+    - "@js-names"
+    - content:max-lines:400
+  js-large:
+    - "@js-names"
+    - content:max-lines:800
+
+ls:
+  .js: "@js-defaults"
+  .jsx: "@js-defaults"
+  .ts: "@js-defaults"
+  .tsx: "@js-defaults"
+
+  generated:
+    .js: "@js-large"
+    .jsx: "@js-large"
+    .ts: "@js-large"
+    .tsx: "@js-large"
+```
+
+This keeps the grouped rules in a dedicated namespace instead of relying on YAML
+anchors. More specific path blocks replace the parent scope for matching files,
+so to override only the content rule in a subtree you point that subtree at a
+different group with the same naming rules and a different `content:*`
+directive. If you want to drop the content rule entirely, point it at a
+naming-only group instead. The `@` shorthand works in both `ls:` entries and
+inside group definitions when you want to build on top of another group.
+
+Each rule group can be written as a YAML list (preferred for readability) or as
+the same pipe-delimited string syntax used inline elsewhere.
+
+For a fuller JavaScript/TypeScript example with shared defaults, stricter
+overrides, and a path that disables the `max-lines` check, see
+[`examples/reusable_content_rule_sets/.ls-lint.yml`](examples/reusable_content_rule_sets/.ls-lint.yml).
+
 ### Result
 
 <img src="https://i.imgur.com/pxXkYcl.gif" alt="command" width="600">

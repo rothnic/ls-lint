@@ -1,0 +1,135 @@
+# Comprehensive example: groups, per-rule messages, and context directives.
+#
+# This config demonstrates the full integrated syntax once all companion PRs
+# are merged:
+#   - `groups:` / `rule-groups:` for reusable rule sets  (available now)
+#   - `@<name>` shorthand for group references           (available now)
+#   - `content:*` validation rules                       (available now)
+#   - `=> "message"` per-rule failure messages           (companion PR)
+#   - `contexts:` change-approval policies               (companion PR)
+#
+# Until the companion PRs land, remove the `=> "..."` annotations and the
+# `contexts:` block; the rest works today.
+
+# ---------------------------------------------------------------------------
+# Reusable rule groups
+# ---------------------------------------------------------------------------
+
+groups:
+  # Base naming convention shared by all code groups.
+  js-names: "camelCase | PascalCase"
+
+  # Standard application code: named correctly and short enough to review.
+  js-defaults:
+    - "@js-names"
+    - "content:max-lines:400 => 'File exceeds 400 lines. Split into focused modules.'"
+
+  # Relaxed limit for generated or data-heavy files.
+  js-large:
+    - "@js-names"
+    - "content:max-lines:800 => 'File exceeds 800 lines (relaxed limit for generated files).'"
+
+  # Documentation: kebab-case, bounded length, and required structure.
+  md-docs:
+    - "kebab-case"
+    - "content:max-lines:250 => 'Doc exceeds 250 lines. Split into sub-pages.'"
+    - "content:heading:^## Overview$ => 'Every doc needs a ## Overview heading.'"
+    - "content:front-matter:required => 'Docs require YAML front matter (title, description).'"
+
+# ---------------------------------------------------------------------------
+# File and directory naming rules
+# ---------------------------------------------------------------------------
+
+ls:
+  # Global defaults applied to any path not matched by a more specific block.
+  .dir: kebab-case
+  .md: "@md-docs"
+
+  # Close the root to unapproved file types, then whitelist explicitly.
+  .*: exists:0
+  .json: regex:^(package|turbo|tsconfig)$
+  .yaml: regex:^(pnpm-workspace|.ls-lint)$
+
+  # Required root files.
+  package.json: exists:1
+  README.md: exists:0-1
+  AGENTS.md: exists:0-1
+
+  # Application source follows the default naming + size policy.
+  src:
+    .ts: "@js-defaults"
+    .tsx: "@js-defaults"
+    .js: "@js-defaults"
+    .jsx: "@js-defaults"
+
+  # Tests live in __tests__ and may not import from other test directories.
+  src/__tests__:
+    .ts: "@js-defaults"
+    .tsx: "@js-defaults"
+
+  # Generated code is allowed to be larger.
+  generated:
+    .ts: "@js-large"
+    .js: "@js-large"
+
+  # Vendor / third-party: naming only, no size constraint.
+  vendor:
+    .ts: "@js-names"
+    .js: "@js-names"
+
+  # Packages follow the monorepo convention.
+  packages/*:
+    .dir: kebab-case
+    .ts: "@js-defaults"
+    .tsx: "@js-defaults"
+    AGENTS.md: exists:1
+    README.md: exists:1
+    src: exists:1
+
+# ---------------------------------------------------------------------------
+# Context directives (requires companion PR)
+#
+# Contexts define approval requirements that appear in the violation message
+# when a file is changed in a specific environment or branch context.
+# ---------------------------------------------------------------------------
+
+contexts:
+  # Any change to shared infrastructure components triggers a review requirement.
+  src/infrastructure:
+    mode: change-approval
+    environment: production
+    message: >
+      Changes to infrastructure modules require review from the platform team.
+      Open a review request and tag @platform before merging.
+
+  # API contract files are sensitive; any change must be explicitly approved.
+  src/api:
+    mode: change-approval
+    message: >
+      API contract changes must be reviewed for backwards compatibility.
+      Tag @api-owners and link the relevant RFC before merging.
+
+  # Security-sensitive utilities require a security-focused reviewer.
+  src/auth:
+    mode: change-approval
+    environment: production
+    message: >
+      Auth module changes require a security review.
+      Tag @security-team and reference any relevant threat model notes.
+
+# ---------------------------------------------------------------------------
+# Ignore patterns
+#
+# ls-lint does not read .gitignore automatically. List generated output and
+# dependency directories here explicitly so they are excluded from linting.
+# ---------------------------------------------------------------------------
+
+ignore:
+  - node_modules
+  - dist
+  - coverage
+  - .next
+  - build
+  - packages/*/dist
+  - packages/*/node_modules
+  - "**/.env*"

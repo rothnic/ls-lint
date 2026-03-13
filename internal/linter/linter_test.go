@@ -1393,6 +1393,119 @@ func TestLinter_Run(t *testing.T) {
 	}
 }
 
+func TestLinter_Run_ContentRules(t *testing.T) {
+	tests := []struct {
+		description          string
+		filesystem           fs.FS
+		config               *config.Config
+		expectedRuleMessages []string
+		expectedPath         string
+		expectedExt          string
+	}{
+		{
+			description: "content rules pass",
+			filesystem: fstest.MapFS{
+				"docs":          &fstest.MapFile{Mode: fs.ModeDir},
+				"docs/guide.md": &fstest.MapFile{Data: []byte("---\ntitle: Guide\n---\n## Overview\nshort line\n"), Mode: fs.ModePerm},
+			},
+			config: config.NewConfig(config.Ls{
+				"docs": config.Ls{
+					".md": "kebab-case | content:max-lines:5 | content:max-line-length:20 | content:heading:^## Overview$ | content:front-matter:required",
+				},
+			}, nil),
+		},
+		{
+			description: "content rules fail even when filename rule passes",
+			filesystem: fstest.MapFS{
+				"docs":               &fstest.MapFile{Mode: fs.ModeDir},
+				"docs/guide-page.md": &fstest.MapFile{Data: []byte("# Intro\nline two\nthis line is too long\n"), Mode: fs.ModePerm},
+			},
+			config: config.NewConfig(config.Ls{
+				"docs": config.Ls{
+					".md": "kebab-case | content:max-lines:2 | content:max-line-length:10 | content:heading:^## Overview$ | content:front-matter:required",
+				},
+			}, nil),
+			expectedPath: "docs/guide-page.md",
+			expectedExt:  ".md",
+			expectedRuleMessages: []string{
+				"content:max-lines:2 (found 3)",
+				"content:max-line-length:10 (found 21)",
+				"content:heading:^## Overview$",
+				"content:front-matter:required",
+			},
+		},
+		{
+			description: "more specific path overrides can disable inherited content checks",
+			filesystem: fstest.MapFS{
+				"src":                    &fstest.MapFile{Mode: fs.ModeDir},
+				"src/core":               &fstest.MapFile{Mode: fs.ModeDir},
+				"src/core/mainFile.ts":   &fstest.MapFile{Data: []byte("line one\nline two\nline three\n"), Mode: fs.ModePerm},
+				"src/vendor":             &fstest.MapFile{Mode: fs.ModeDir},
+				"src/vendor/mainFile.ts": &fstest.MapFile{Data: []byte("line one\nline two\nline three\n"), Mode: fs.ModePerm},
+			},
+			config: func() *config.Config {
+				config := config.NewConfig(config.Ls{
+					".ts": "group:jsTsDefault",
+					"src/vendor": config.Ls{
+						".ts": "group:jsTsNamingOnly",
+					},
+				}, nil)
+				config.RuleGroups["jsTsDefault"] = []string{"camelCase", "content:max-lines:2"}
+				config.RuleGroups["jsTsNamingOnly"] = []string{"camelCase"}
+				return config
+			}(),
+			expectedPath: "src/core/mainFile.ts",
+			expectedExt:  ".ts",
+			expectedRuleMessages: []string{
+				"content:max-lines:2 (found 3)",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		linter := NewLinter(
+			".",
+			test.config,
+			&debug.Statistic{
+				Start:   time.Now(),
+				RWMutex: new(sync.RWMutex),
+			},
+			[]*rule.Error{},
+		)
+
+		err := linter.Run(test.filesystem, nil, false)
+		if err != nil {
+			t.Fatalf("%s: expected no error, got %v", test.description, err)
+		}
+
+		errors := linter.GetErrors()
+		if len(test.expectedRuleMessages) == 0 {
+			if len(errors) != 0 {
+				t.Fatalf("%s: expected no lint errors, got %+v", test.description, errors)
+			}
+			continue
+		}
+
+		if len(errors) != 1 {
+			t.Fatalf("%s: expected one lint error, got %+v", test.description, errors)
+		}
+		if errors[0].GetPath() != test.expectedPath {
+			t.Fatalf("%s: expected error path %s, got %s", test.description, test.expectedPath, errors[0].GetPath())
+		}
+		if errors[0].GetExt() != test.expectedExt {
+			t.Fatalf("%s: expected error ext %s, got %s", test.description, test.expectedExt, errors[0].GetExt())
+		}
+
+		ruleMessages := make([]string, 0, len(errors[0].GetRules()))
+		for _, errRule := range errors[0].GetRules() {
+			ruleMessages = append(ruleMessages, errRule.GetErrorMessage())
+		}
+		if !reflect.DeepEqual(ruleMessages, test.expectedRuleMessages) {
+			t.Fatalf("%s: expected rule messages %v, got %v", test.description, test.expectedRuleMessages, ruleMessages)
+		}
+	}
+}
+
 func TestLinter_Run_MonorepoComplexConstraints(t *testing.T) {
 	newMonorepoLs := func() config.Ls {
 		return config.Ls{
