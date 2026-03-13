@@ -13,6 +13,15 @@ import (
 	"github.com/loeffel-io/ls-lint/v2/internal/rule"
 )
 
+var benchmarkIgnorePaths = []string{
+	"node_modules",
+	"dist",
+	"coverage",
+	"packages/*/dist",
+}
+
+const benchmarkPackageVariants = 25
+
 func BenchmarkLinterRunContentScenarios(b *testing.B) {
 	configurations := []struct {
 		name string
@@ -109,10 +118,12 @@ func benchmarkContentFilesystem(fileCount int) fs.FS {
 	content := []byte("---\ntitle: Guide\nsummary: Example\n---\n# Intro\n## Overview\nThis is a realistic markdown file used for performance measurements.\nIt has enough lines to exercise max-lines and max-line-length checks.\nThe file stays comfortably under the configured thresholds.\n## Usage\nUse the content directive to enforce lightweight structure.\nAnother line of text to keep the file shape realistic.\nFinal line.\n")
 
 	for i := 0; i < fileCount; i++ {
-		dir := fmt.Sprintf("docs/group-%03d", i%25)
+		dir := fmt.Sprintf("docs/group-%03d", i%benchmarkPackageVariants)
 		files[dir] = &fstest.MapFile{Mode: fs.ModeDir}
 		files[fmt.Sprintf("%s/guide-%05d.md", dir, i)] = &fstest.MapFile{Mode: fs.ModePerm, Data: content}
 	}
+
+	addIgnoredBenchmarkFiles(files, fileCount, []byte("ignored benchmark artifact\n"), ".md")
 
 	return files
 }
@@ -169,10 +180,12 @@ export const shouldRefreshCache = (
 `)
 
 	for i := 0; i < fileCount; i++ {
-		dir := fmt.Sprintf("src/module-%03d", i%25)
+		dir := fmt.Sprintf("src/module-%03d", i%benchmarkPackageVariants)
 		files[dir] = &fstest.MapFile{Mode: fs.ModeDir}
 		files[fmt.Sprintf("%s/serviceResult%05d.ts", dir, i)] = &fstest.MapFile{Mode: fs.ModePerm, Data: content}
 	}
+
+	addIgnoredBenchmarkFiles(files, fileCount, content, ".ts")
 
 	return files
 }
@@ -184,7 +197,7 @@ func benchmarkContentConfig(ruleSpec string) *config.Config {
 				".md": ruleSpec,
 			},
 		},
-	}, nil)
+	}, benchmarkIgnorePaths)
 }
 
 func benchmarkCodeConfig(ruleSpec string) *config.Config {
@@ -194,5 +207,37 @@ func benchmarkCodeConfig(ruleSpec string) *config.Config {
 				".ts": ruleSpec,
 			},
 		},
-	}, nil)
+	}, benchmarkIgnorePaths)
+}
+
+func addIgnoredBenchmarkFiles(files fstest.MapFS, fileCount int, content []byte, extension string) {
+	ignoredFileCount := fileCount / 5
+	if ignoredFileCount < 10 {
+		ignoredFileCount = 10
+	}
+
+	files["node_modules"] = &fstest.MapFile{Mode: fs.ModeDir}
+	files["dist"] = &fstest.MapFile{Mode: fs.ModeDir}
+	files["coverage"] = &fstest.MapFile{Mode: fs.ModeDir}
+	files["packages"] = &fstest.MapFile{Mode: fs.ModeDir}
+
+	for i := 0; i < ignoredFileCount; i++ {
+		packageName := fmt.Sprintf("pkg-%03d", i%benchmarkPackageVariants)
+		nodeModulesDir := fmt.Sprintf("node_modules/%s", packageName)
+		distDir := fmt.Sprintf("dist/chunk-%03d", i%benchmarkPackageVariants)
+		coverageDir := fmt.Sprintf("coverage/run-%03d", i%benchmarkPackageVariants)
+		packageDir := fmt.Sprintf("packages/%s", packageName)
+		packageDistDir := fmt.Sprintf("%s/dist", packageDir)
+
+		files[nodeModulesDir] = &fstest.MapFile{Mode: fs.ModeDir}
+		files[distDir] = &fstest.MapFile{Mode: fs.ModeDir}
+		files[coverageDir] = &fstest.MapFile{Mode: fs.ModeDir}
+		files[packageDir] = &fstest.MapFile{Mode: fs.ModeDir}
+		files[packageDistDir] = &fstest.MapFile{Mode: fs.ModeDir}
+
+		files[fmt.Sprintf("%s/ignored%05d%s", nodeModulesDir, i, extension)] = &fstest.MapFile{Mode: fs.ModePerm, Data: content}
+		files[fmt.Sprintf("%s/ignored%05d%s", distDir, i, extension)] = &fstest.MapFile{Mode: fs.ModePerm, Data: content}
+		files[fmt.Sprintf("%s/ignored%05d.txt", coverageDir, i)] = &fstest.MapFile{Mode: fs.ModePerm, Data: []byte("mode: set\n")}
+		files[fmt.Sprintf("%s/ignored%05d%s", packageDistDir, i, extension)] = &fstest.MapFile{Mode: fs.ModePerm, Data: content}
+	}
 }
