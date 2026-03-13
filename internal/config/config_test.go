@@ -234,24 +234,26 @@ func TestGetIndex_InvalidContentRule(t *testing.T) {
 }
 
 func TestConfigYAMLRuleGroupsForSharedRuleSets(t *testing.T) {
-	configYAML := []byte(`
-rule-groups:
-  jsTsDefault:
-    - camelCase
-    - PascalCase
-    - content:max-lines:4
-  jsTsRelaxed:
-    - camelCase
-    - PascalCase
-ls:
-  .js: group:jsTsDefault
-  .ts: group:jsTsDefault
-  vendor:
-    .js: group:jsTsRelaxed
-    .ts: group:jsTsRelaxed
-ignore:
-  - node_modules
-`)
+	configYAML := []byte(
+		"\nrule-groups:\n" +
+			"  jsTsDefault:\n" +
+			"    - camelCase\n" +
+			"    - PascalCase\n" +
+			"    - content:max-lines:4\n" +
+			"  jsTsRelaxed:\n" +
+			"    - camelCase\n" +
+			"    - PascalCase\n" +
+			"groups:\n" +
+			"  jsTsNames: \"camelCase | PascalCase\"\n" +
+			"ls:\n" +
+			"  .js: group:jsTsDefault\n" +
+			"  .ts: \"@jsTsDefault\"\n" +
+			"  vendor:\n" +
+			"    .js: \"@jsTsRelaxed\"\n" +
+			"    .ts: \"@jsTsRelaxed\"\n" +
+			"ignore:\n" +
+			"  - node_modules\n",
+	)
 
 	config := NewConfig(nil, nil)
 	if err := yaml.Unmarshal(configYAML, config); err != nil {
@@ -283,6 +285,49 @@ ignore:
 
 	if !reflect.DeepEqual(config.GetIgnore(), []string{"node_modules"}) {
 		t.Fatalf("expected ignore list to survive yaml unmarshal, got %v", config.GetIgnore())
+	}
+}
+
+func TestConfigYAMLGroupAliasAndNestedReuse(t *testing.T) {
+	configYAML := []byte(
+		"\ngroups:\n" +
+			"  shared-js: \"camelCase | PascalCase\"\n" +
+			"  js-defaults:\n" +
+			"    - \"@shared-js\"\n" +
+			"    - content:max-lines:4\n" +
+			"  js-long-form:\n" +
+			"    - \"@shared-js\"\n" +
+			"    - content:max-lines:800\n" +
+			"ls:\n" +
+			"  .ts: \"@js-defaults\"\n" +
+			"  generated:\n" +
+			"    .ts: \"@js-long-form\"\n",
+	)
+
+	config := NewConfig(nil, nil)
+	if err := yaml.Unmarshal(configYAML, config); err != nil {
+		t.Fatalf("expected yaml to unmarshal, got %v", err)
+	}
+
+	index, err := config.GetIndex(config.GetLs())
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	rootTSRules := index[""][".ts"]
+	if len(rootTSRules) != 3 {
+		t.Fatalf("expected 3 rules for .ts, got %d", len(rootTSRules))
+	}
+	if rootTSRules[2].GetName() != "content" || !reflect.DeepEqual(rootTSRules[2].GetParameters(), []string{"max-lines:4"}) {
+		t.Fatalf("expected content max-lines:4 rule, got %s %v", rootTSRules[2].GetName(), rootTSRules[2].GetParameters())
+	}
+
+	genTSRules := index["generated"][".ts"]
+	if len(genTSRules) != 3 {
+		t.Fatalf("expected 3 generated .ts rules, got %d", len(genTSRules))
+	}
+	if genTSRules[2].GetName() != "content" || !reflect.DeepEqual(genTSRules[2].GetParameters(), []string{"max-lines:800"}) {
+		t.Fatalf("expected content max-lines:800 rule, got %s %v", genTSRules[2].GetName(), genTSRules[2].GetParameters())
 	}
 }
 

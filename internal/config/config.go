@@ -31,6 +31,7 @@ var ErrInvalidIgnorePattern = errors.New("invalid ignore pattern")
 type Config struct {
 	Ls         Ls                     `yaml:"ls"`
 	RuleGroups map[string]interface{} `yaml:"rule-groups"`
+	Groups     map[string]interface{} `yaml:"groups"`
 	Ignore     []string               `yaml:"ignore"`
 	*sync.RWMutex
 }
@@ -39,6 +40,7 @@ func NewConfig(ls Ls, ignore []string) *Config {
 	return &Config{
 		Ls:         ls,
 		RuleGroups: make(map[string]interface{}),
+		Groups:     make(map[string]interface{}),
 		Ignore:     ignore,
 		RWMutex:    new(sync.RWMutex),
 	}
@@ -62,8 +64,12 @@ func (config *Config) GetRuleGroups() map[string]interface{} {
 	config.RLock()
 	defer config.RUnlock()
 
-	ruleGroups := make(map[string]interface{}, len(config.RuleGroups))
+	ruleGroups := make(map[string]interface{}, len(config.RuleGroups)+len(config.Groups))
 	for key, value := range config.RuleGroups {
+		ruleGroups[key] = cloneRuleGroupValue(value)
+	}
+
+	for key, value := range config.Groups {
 		ruleGroups[key] = cloneRuleGroupValue(value)
 	}
 
@@ -250,18 +256,28 @@ func (config *Config) expandRuleNames(ruleNames []string, seenGroups map[string]
 			continue
 		}
 
-		groupName, isRuleGroup := strings.CutPrefix(ruleName, "group:")
-		if !isRuleGroup {
-			expanded = append(expanded, ruleName)
+		switch {
+		case strings.HasPrefix(ruleName, "@"):
+			groupRules, err := config.getRuleGroupRules(strings.TrimSpace(strings.TrimPrefix(ruleName, "@")), seenGroups)
+			if err != nil {
+				return nil, err
+			}
+			expanded = append(expanded, groupRules...)
 			continue
-		}
+		default:
+			groupName, isRuleGroup := strings.CutPrefix(ruleName, "group:")
+			if !isRuleGroup {
+				expanded = append(expanded, ruleName)
+				continue
+			}
 
-		groupName = strings.TrimSpace(groupName)
-		groupRules, err := config.getRuleGroupRules(groupName, seenGroups)
-		if err != nil {
-			return nil, err
+			groupName = strings.TrimSpace(groupName)
+			groupRules, err := config.getRuleGroupRules(groupName, seenGroups)
+			if err != nil {
+				return nil, err
+			}
+			expanded = append(expanded, groupRules...)
 		}
-		expanded = append(expanded, groupRules...)
 	}
 
 	return expanded, nil

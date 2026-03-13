@@ -175,39 +175,32 @@ ls:
 ```
 
 To keep a repeated content rule set concise across several extensions, you can
-define reusable rule groups once and reference them from `ls:`:
+define reusable rule groups once and reference them from `ls:`. The shorter
+`groups:` alias is supported alongside `rule-groups:`, and you can reference a
+group with either `group:<name>` or the compact `@<name>` form. Groups can also
+reuse other groups to avoid repeating shared naming rules:
 
 ```yaml
-rule-groups:
+groups:
+  js-names: "camelCase | PascalCase"
   js-defaults:
-    - camelCase
-    - PascalCase
+    - "@js-names"
     - content:max-lines:400
   js-large:
-    - camelCase
-    - PascalCase
+    - "@js-names"
     - content:max-lines:800
-  js-names:
-    - camelCase
-    - PascalCase
 
 ls:
-  .js: group:js-defaults
-  .jsx: group:js-defaults
-  .ts: group:js-defaults
-  .tsx: group:js-defaults
+  .js: "@js-defaults"
+  .jsx: "@js-defaults"
+  .ts: "@js-defaults"
+  .tsx: "@js-defaults"
 
   generated:
-    .js: group:js-large
-    .jsx: group:js-large
-    .ts: group:js-large
-    .tsx: group:js-large
-
-  vendor:
-    .js: group:js-names
-    .jsx: group:js-names
-    .ts: group:js-names
-    .tsx: group:js-names
+    .js: "@js-large"
+    .jsx: "@js-large"
+    .ts: "@js-large"
+    .tsx: "@js-large"
 ```
 
 This keeps the grouped rules in a dedicated namespace instead of relying on YAML
@@ -215,7 +208,8 @@ anchors. More specific path blocks replace the parent scope for matching files,
 so to override only the content rule in a subtree you point that subtree at a
 different group with the same naming rules and a different `content:*`
 directive. If you want to drop the content rule entirely, point it at a
-naming-only group instead.
+naming-only group instead. The `@` shorthand works in both `ls:` entries and
+inside group definitions when you want to build on top of another group.
 
 Each rule group can be written as a YAML list (preferred for readability) or as
 the same pipe-delimited string syntax used inline elsewhere.
