@@ -28,16 +28,18 @@ const (
 var ErrInvalidIgnorePattern = errors.New("invalid ignore pattern")
 
 type Config struct {
-	Ls     Ls       `yaml:"ls"`
-	Ignore []string `yaml:"ignore"`
+	Ls         Ls                     `yaml:"ls"`
+	RuleGroups map[string]interface{} `yaml:"rule-groups"`
+	Ignore     []string               `yaml:"ignore"`
 	*sync.RWMutex
 }
 
 func NewConfig(ls Ls, ignore []string) *Config {
 	return &Config{
-		Ls:      ls,
-		Ignore:  ignore,
-		RWMutex: new(sync.RWMutex),
+		Ls:         ls,
+		RuleGroups: make(map[string]interface{}),
+		Ignore:     ignore,
+		RWMutex:    new(sync.RWMutex),
 	}
 }
 
@@ -53,6 +55,13 @@ func (config *Config) GetIgnore() []string {
 	defer config.RUnlock()
 
 	return config.Ignore
+}
+
+func (config *Config) GetRuleGroups() map[string]interface{} {
+	config.RLock()
+	defer config.RUnlock()
+
+	return config.RuleGroups
 }
 
 func (config *Config) GetIgnoreIndex() (*IgnoreIndex, error) {
@@ -181,7 +190,12 @@ func (config *Config) walkIndex(index RuleIndex, key string, list Ls) error {
 			continue
 		}
 
-		for _, ruleName := range strings.Split(v.(string), or) {
+		ruleNames, err := config.expandRuleNames(strings.Split(v.(string), or), nil)
+		if err != nil {
+			return err
+		}
+
+		for _, ruleName := range ruleNames {
 			ruleName = strings.TrimSpace(ruleName)
 			ruleSplit := strings.SplitN(ruleName, ":", 2)
 			ruleName = ruleSplit[0]
@@ -202,4 +216,77 @@ func (config *Config) walkIndex(index RuleIndex, key string, list Ls) error {
 	}
 
 	return nil
+}
+
+func (config *Config) expandRuleNames(ruleNames []string, seenGroups map[string]bool) ([]string, error) {
+	expanded := make([]string, 0, len(ruleNames))
+
+	for _, ruleName := range ruleNames {
+		ruleName = strings.TrimSpace(ruleName)
+		if ruleName == "" {
+			continue
+		}
+
+		groupName, isRuleGroup := strings.CutPrefix(ruleName, "group:")
+		if !isRuleGroup {
+			expanded = append(expanded, ruleName)
+			continue
+		}
+
+		groupName = strings.TrimSpace(groupName)
+		groupRules, err := config.getRuleGroupRules(groupName, seenGroups)
+		if err != nil {
+			return nil, err
+		}
+		expanded = append(expanded, groupRules...)
+	}
+
+	return expanded, nil
+}
+
+func (config *Config) getRuleGroupRules(name string, seenGroups map[string]bool) ([]string, error) {
+	if name == "" {
+		return nil, fmt.Errorf("rule group name empty")
+	}
+	if seenGroups != nil && seenGroups[name] {
+		return nil, fmt.Errorf("rule group %s circular reference", name)
+	}
+
+	groupValue, exists := config.GetRuleGroups()[name]
+	if !exists {
+		return nil, fmt.Errorf("rule group %s not exists", name)
+	}
+
+	groupEntries, err := normalizeRuleGroupEntries(groupValue)
+	if err != nil {
+		return nil, fmt.Errorf("rule group %s failed with %s", name, err.Error())
+	}
+
+	nextSeenGroups := make(map[string]bool, len(seenGroups)+1)
+	for key, value := range seenGroups {
+		nextSeenGroups[key] = value
+	}
+	nextSeenGroups[name] = true
+
+	return config.expandRuleNames(groupEntries, nextSeenGroups)
+}
+
+func normalizeRuleGroupEntries(groupValue interface{}) ([]string, error) {
+	switch reflect.TypeOf(groupValue).Kind() {
+	case reflect.String:
+		return strings.Split(groupValue.(string), or), nil
+	case reflect.Slice:
+		groupSlice := reflect.ValueOf(groupValue)
+		entries := make([]string, 0, groupSlice.Len())
+		for i := 0; i < groupSlice.Len(); i++ {
+			entry, ok := groupSlice.Index(i).Interface().(string)
+			if !ok {
+				return nil, fmt.Errorf("rule group entry must be a string")
+			}
+			entries = append(entries, entry)
+		}
+		return entries, nil
+	default:
+		return nil, fmt.Errorf("rule group must be a string or list of strings")
+	}
 }

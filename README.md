@@ -174,31 +174,37 @@ ls:
     .md: kebab-case | content:max-lines:250 | content:heading:^## Overview$ | content:front-matter:required
 ```
 
-To keep a repeated content rule set concise across several extensions, you can use
-YAML anchors and aliases:
+To keep a repeated content rule set concise across several extensions, you can
+define reusable rule groups once and reference them from `ls:`:
 
 ```yaml
-shared:
-  jsTsDefault: &js_ts_default camelCase | PascalCase | content:max-lines:400
-  jsTsNamingOnly: &js_ts_naming_only camelCase | PascalCase
+rule-groups:
+  jsTsDefault:
+    - camelCase
+    - PascalCase
+    - content:max-lines:400
+  jsTsNamingOnly:
+    - camelCase
+    - PascalCase
 
 ls:
-  .js: *js_ts_default
-  .jsx: *js_ts_default
-  .ts: *js_ts_default
-  .tsx: *js_ts_default
+  .js: group:jsTsDefault
+  .jsx: group:jsTsDefault
+  .ts: group:jsTsDefault
+  .tsx: group:jsTsDefault
 
   vendor:
-    .js: *js_ts_naming_only
-    .jsx: *js_ts_naming_only
-    .ts: *js_ts_naming_only
-    .tsx: *js_ts_naming_only
+    .js: group:jsTsNamingOnly
+    .jsx: group:jsTsNamingOnly
+    .ts: group:jsTsNamingOnly
+    .tsx: group:jsTsNamingOnly
 ```
 
-This gives you a labeled, reusable rule string without adding new ls-lint syntax.
-More specific path blocks replace the parent scope for matching files, so to
-relax or disable an inherited content check in a subtree you restate the naming
-rules you still want and omit the `content:*` directive you no longer want.
+This keeps the grouped rules in a dedicated namespace instead of relying on YAML
+anchors. More specific path blocks replace the parent scope for matching files,
+so to relax or disable an inherited content check in a subtree you point that
+subtree at a different rule group that omits the `content:*` directive you no
+longer want.
 
 For a fuller JavaScript/TypeScript example with shared defaults, stricter
 overrides, and a path that disables the `max-lines` check, see

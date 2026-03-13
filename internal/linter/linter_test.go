@@ -1443,12 +1443,17 @@ func TestLinter_Run_ContentRules(t *testing.T) {
 				"src/vendor":             &fstest.MapFile{Mode: fs.ModeDir},
 				"src/vendor/mainFile.ts": &fstest.MapFile{Data: []byte("line one\nline two\nline three\n"), Mode: fs.ModePerm},
 			},
-			config: config.NewConfig(config.Ls{
-				".ts": "camelCase | content:max-lines:2",
-				"src/vendor": config.Ls{
-					".ts": "camelCase",
-				},
-			}, nil),
+			config: func() *config.Config {
+				config := config.NewConfig(config.Ls{
+					".ts": "group:jsTsDefault",
+					"src/vendor": config.Ls{
+						".ts": "group:jsTsNamingOnly",
+					},
+				}, nil)
+				config.RuleGroups["jsTsDefault"] = []string{"camelCase", "content:max-lines:2"}
+				config.RuleGroups["jsTsNamingOnly"] = []string{"camelCase"}
+				return config
+			}(),
 			expectedPath: "src/core/mainFile.ts",
 			expectedExt:  ".ts",
 			expectedRuleMessages: []string{

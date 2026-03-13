@@ -233,17 +233,22 @@ func TestGetIndex_InvalidContentRule(t *testing.T) {
 	}
 }
 
-func TestConfigYAMLAnchorsForSharedRuleSets(t *testing.T) {
+func TestConfigYAMLRuleGroupsForSharedRuleSets(t *testing.T) {
 	configYAML := []byte(`
-shared:
-  jsTsDefault: &js_ts_default camelCase | PascalCase | content:max-lines:4
-  jsTsRelaxed: &js_ts_relaxed camelCase | PascalCase
+rule-groups:
+  jsTsDefault:
+    - camelCase
+    - PascalCase
+    - content:max-lines:4
+  jsTsRelaxed:
+    - camelCase
+    - PascalCase
 ls:
-  .js: *js_ts_default
-  .ts: *js_ts_default
+  .js: group:jsTsDefault
+  .ts: group:jsTsDefault
   vendor:
-    .js: *js_ts_relaxed
-    .ts: *js_ts_relaxed
+    .js: group:jsTsRelaxed
+    .ts: group:jsTsRelaxed
 ignore:
   - node_modules
 `)
@@ -278,5 +283,16 @@ ignore:
 
 	if !reflect.DeepEqual(config.GetIgnore(), []string{"node_modules"}) {
 		t.Fatalf("expected ignore list to survive yaml unmarshal, got %v", config.GetIgnore())
+	}
+}
+
+func TestGetIndex_InvalidRuleGroup(t *testing.T) {
+	config := NewConfig(Ls{
+		".ts": "group:missing",
+	}, nil)
+
+	_, err := config.GetIndex(config.GetLs())
+	if err == nil || err.Error() != "rule group missing not exists" {
+		t.Fatalf("expected missing rule group error, got %v", err)
 	}
 }
