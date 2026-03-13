@@ -209,15 +209,6 @@ longer want.
 Each rule group can be written as a YAML list (preferred for readability) or as
 the same pipe-delimited string syntax used inline elsewhere.
 
-Extension keys in `ls:` remain explicit today, so patterns like
-`.(test|spec)?.(j|t)sx?` are not supported as a single grouped key. `rule-groups`
-keep that repetition limited to the file selectors while the reusable rule
-definition stays in one place.
-
-Because a rule group expands back into ordinary rule entries, the same rule
-grammar can continue to apply there, including future per-rule `=> message`
-syntax.
-
 For a fuller JavaScript/TypeScript example with shared defaults, stricter
 overrides, and a path that disables the `max-lines` check, see
 [`examples/reusable_content_rule_sets/.ls-lint.yml`](examples/reusable_content_rule_sets/.ls-lint.yml).
