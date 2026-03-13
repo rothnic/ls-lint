@@ -12,7 +12,8 @@ rule-groups:
     - PascalCase
 
 ls:
-  # Shared defaults for application code.
+  # Shared defaults for application code. Extension keys are still explicit
+  # today, so rule-groups keep the repeated rule definition in one place.
   .js: group:jsTsDefault
   .jsx: group:jsTsDefault
   .ts: group:jsTsDefault
@@ -29,6 +30,9 @@ ls:
     .jsx: group:jsTsNamingOnly
     .ts: group:jsTsNamingOnly
     .tsx: group:jsTsNamingOnly
+
+# Rule groups expand back into ordinary rule entries, so future inline rule
+# features such as `=> message` keep the same shape here.
 
 ignore:
   # If you need to disable ls-lint entirely for a path, ignore it explicitly.
