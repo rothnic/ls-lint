@@ -1,34 +1,37 @@
 rule-groups:
-  jsTsDefault:
+  js-defaults:
     - camelCase
     - PascalCase
     - content:max-lines:400
-  jsTsLargeFiles:
+  js-large:
     - camelCase
     - PascalCase
     - content:max-lines:800
-  jsTsNamingOnly:
+  js-names:
     - camelCase
     - PascalCase
 
 ls:
   # Shared defaults for application code.
-  .js: group:jsTsDefault
-  .jsx: group:jsTsDefault
-  .ts: group:jsTsDefault
-  .tsx: group:jsTsDefault
+  .js: group:js-defaults
+  .jsx: group:js-defaults
+  .ts: group:js-defaults
+  .tsx: group:js-defaults
 
-  # A more specific path overrides the parent scope for matching files.
-  scripts:
-    .js: group:jsTsLargeFiles
-    .ts: group:jsTsLargeFiles
+  # Override only the content rule by keeping the naming rules and raising the
+  # max-lines limit in a more specific path.
+  generated:
+    .js: group:js-large
+    .jsx: group:js-large
+    .ts: group:js-large
+    .tsx: group:js-large
 
   # Drop the max-lines check in vendor code while keeping the naming policy.
   vendor:
-    .js: group:jsTsNamingOnly
-    .jsx: group:jsTsNamingOnly
-    .ts: group:jsTsNamingOnly
-    .tsx: group:jsTsNamingOnly
+    .js: group:js-names
+    .jsx: group:js-names
+    .ts: group:js-names
+    .tsx: group:js-names
 
 ignore:
   # If you need to disable ls-lint entirely for a path, ignore it explicitly.

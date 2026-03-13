@@ -179,32 +179,43 @@ define reusable rule groups once and reference them from `ls:`:
 
 ```yaml
 rule-groups:
-  jsTsDefault:
+  js-defaults:
     - camelCase
     - PascalCase
     - content:max-lines:400
-  jsTsNamingOnly:
+  js-large:
+    - camelCase
+    - PascalCase
+    - content:max-lines:800
+  js-names:
     - camelCase
     - PascalCase
 
 ls:
-  .js: group:jsTsDefault
-  .jsx: group:jsTsDefault
-  .ts: group:jsTsDefault
-  .tsx: group:jsTsDefault
+  .js: group:js-defaults
+  .jsx: group:js-defaults
+  .ts: group:js-defaults
+  .tsx: group:js-defaults
+
+  generated:
+    .js: group:js-large
+    .jsx: group:js-large
+    .ts: group:js-large
+    .tsx: group:js-large
 
   vendor:
-    .js: group:jsTsNamingOnly
-    .jsx: group:jsTsNamingOnly
-    .ts: group:jsTsNamingOnly
-    .tsx: group:jsTsNamingOnly
+    .js: group:js-names
+    .jsx: group:js-names
+    .ts: group:js-names
+    .tsx: group:js-names
 ```
 
 This keeps the grouped rules in a dedicated namespace instead of relying on YAML
 anchors. More specific path blocks replace the parent scope for matching files,
-so to relax or disable an inherited content check in a subtree you point that
-subtree at a different rule group that omits the `content:*` directive you no
-longer want.
+so to override only the content rule in a subtree you point that subtree at a
+different group with the same naming rules and a different `content:*`
+directive. If you want to drop the content rule entirely, point it at a
+naming-only group instead.
 
 Each rule group can be written as a YAML list (preferred for readability) or as
 the same pipe-delimited string syntax used inline elsewhere.
