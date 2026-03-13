@@ -1,0 +1,201 @@
+name: Real-World Performance Validation
+
+# This workflow clones representative open-source JavaScript/TypeScript projects,
+# builds ls-lint from the current branch, and measures the runtime overhead of
+# progressively more prescriptive content-rule configurations.
+#
+# Trigger manually via "Run workflow" in the Actions tab, or wire it to a
+# scheduled cron job.  It does NOT run on every push so it does not slow down
+# the normal CI loop.
+on:
+  workflow_dispatch:
+  schedule:
+    # Run weekly on Monday at 06:00 UTC so the numbers stay current as the
+    # upstream projects evolve.
+    - cron: "0 6 * * 1"
+
+jobs:
+  real-world-perf:
+    name: Real-world timing (${{ matrix.project.name }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        project:
+          # Small: a pragmatic React app that follows real-world conventions.
+          # ~128 TS/TSX source files; no files exceed 300 lines so all pass a
+          # 400-line limit.  Demonstrates baseline cost on a greenfield-sized
+          # codebase.
+          - name: bulletproof-react
+            repo: alan2207/bulletproof-react
+            checked_ext: ".ts .tsx .js .jsx"
+            ts_file_count: "~128"
+            ignore_paths: "node_modules dist coverage .next build"
+
+          # Medium: Vite's core packages.
+          # ~546 TS files; 37 files exceed 400 lines (e.g. config.ts at 2703
+          # lines, build.ts at 1922 lines).  Representative of an actively
+          # maintained tool with legitimate large files that ls-lint surfaces.
+          - name: vite
+            repo: vitejs/vite
+            checked_ext: ".ts .tsx"
+            ts_file_count: "~546"
+            ignore_paths: "node_modules dist coverage playground __snapshots__"
+
+          # Large: Nuxt monorepo.
+          # ~600 TS files; 20 files exceed 400 lines.  Represents a large
+          # framework codebase with deep package nesting.
+          - name: nuxt
+            repo: nuxt/nuxt
+            checked_ext: ".ts .tsx .mts .cts"
+            ts_file_count: "~600"
+            ignore_paths: "node_modules dist coverage .nuxt .output __snapshots__ packages/*/node_modules packages/*/dist"
+
+    steps:
+      - name: Check out ls-lint
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build ls-lint binary
+        run: go build -o /tmp/ls-lint ./cmd/ls_lint/
+
+      - name: Clone ${{ matrix.project.name }}
+        run: |
+          git clone --depth=1 \
+            https://github.com/${{ matrix.project.repo }}.git \
+            /tmp/project
+
+      - name: Count checked source files
+        id: count
+        run: |
+          count=0
+          for ext in ${{ matrix.project.checked_ext }}; do
+            n=$(find /tmp/project -name "*${ext}" | grep -v node_modules | wc -l)
+            count=$((count + n))
+          done
+          echo "file_count=${count}" >> "$GITHUB_OUTPUT"
+
+      # Write three config variants that will be timed in the next steps.
+      - name: Write ls-lint configs
+        run: |
+          # Build the ls: entries for each extension.
+          ls_naming=""
+          ls_maxlines=""
+          ls_full=""
+          for ext in ${{ matrix.project.checked_ext }}; do
+            ls_naming="${ls_naming}  ${ext}: camelCase | PascalCase\n"
+            ls_maxlines="${ls_maxlines}  ${ext}: camelCase | PascalCase | content:max-lines:400\n"
+            ls_full="${ls_full}  ${ext}: camelCase | PascalCase | content:max-lines:400 | content:max-line-length:120\n"
+          done
+
+          # Build the ignore: list.
+          ignore_block=""
+          for p in ${{ matrix.project.ignore_paths }}; do
+            ignore_block="${ignore_block}  - ${p}\n"
+          done
+
+          write_config() {
+            local dir="$1"
+            local ls_rules="$2"
+            mkdir -p "${dir}"
+            printf "ls:\n${ls_rules}\nignore:\n${ignore_block}\n" > "${dir}/.ls-lint.yml"
+          }
+
+          write_config /tmp/cfg/naming-only       "${ls_naming}"
+          write_config /tmp/cfg/with-max-lines    "${ls_maxlines}"
+          write_config /tmp/cfg/with-max-lines-ll "${ls_full}"
+
+      - name: Warm up (discard first run to reduce cold-start noise)
+        run: |
+          /tmp/ls-lint --config /tmp/cfg/naming-only/.ls-lint.yml \
+            --workdir /tmp/project || true
+
+      - name: Time naming-only config
+        id: t_naming
+        run: |
+          total_ms=0
+          for i in 1 2 3; do
+            start_ns=$(date +%s%N)
+            /tmp/ls-lint --config /tmp/cfg/naming-only/.ls-lint.yml \
+              --workdir /tmp/project || true
+            end_ns=$(date +%s%N)
+            total_ms=$((total_ms + (end_ns - start_ns) / 1000000))
+          done
+          avg_ms=$((total_ms / 3))
+          echo "avg_ms=${avg_ms}" >> "$GITHUB_OUTPUT"
+          echo "naming-only avg: ${avg_ms} ms"
+
+      - name: Time +content:max-lines:400
+        id: t_maxlines
+        run: |
+          total_ms=0
+          for i in 1 2 3; do
+            start_ns=$(date +%s%N)
+            /tmp/ls-lint --config /tmp/cfg/with-max-lines/.ls-lint.yml \
+              --workdir /tmp/project || true
+            end_ns=$(date +%s%N)
+            total_ms=$((total_ms + (end_ns - start_ns) / 1000000))
+          done
+          avg_ms=$((total_ms / 3))
+          echo "avg_ms=${avg_ms}" >> "$GITHUB_OUTPUT"
+          echo "+max-lines avg: ${avg_ms} ms"
+
+      - name: Time +content:max-lines:400 + content:max-line-length:120
+        id: t_full
+        run: |
+          total_ms=0
+          for i in 1 2 3; do
+            start_ns=$(date +%s%N)
+            /tmp/ls-lint --config /tmp/cfg/with-max-lines-ll/.ls-lint.yml \
+              --workdir /tmp/project || true
+            end_ns=$(date +%s%N)
+            total_ms=$((total_ms + (end_ns - start_ns) / 1000000))
+          done
+          avg_ms=$((total_ms / 3))
+          echo "avg_ms=${avg_ms}" >> "$GITHUB_OUTPUT"
+          echo "+max-lines+line-length avg: ${avg_ms} ms"
+
+      - name: Count violations detected by content rules
+        run: |
+          echo "=== Violations found by +max-lines config ==="
+          /tmp/ls-lint \
+            --config /tmp/cfg/with-max-lines/.ls-lint.yml \
+            --workdir /tmp/project 2>&1 | grep "content:max-lines" || echo "(none)"
+          echo ""
+          echo "=== Violations found by +max-lines+line-length config ==="
+          /tmp/ls-lint \
+            --config /tmp/cfg/with-max-lines-ll/.ls-lint.yml \
+            --workdir /tmp/project 2>&1 | grep "content:" || echo "(none)"
+
+      - name: Print timing summary
+        run: |
+          echo "## ${{ matrix.project.name }} — ${{ matrix.project.repo }}"
+          echo ""
+          echo "Checked files (depth-1 clone, ignores applied):"
+          echo "  actual count  : ${{ steps.count.outputs.file_count }}"
+          echo "  expected range: ${{ matrix.project.ts_file_count }}"
+          echo ""
+          echo "| Config                                     | avg wall time (3 runs) |"
+          echo "|--------------------------------------------|------------------------|"
+          echo "| naming-only                                | ${{ steps.t_naming.outputs.avg_ms }} ms |"
+          echo "| + content:max-lines:400                    | ${{ steps.t_maxlines.outputs.avg_ms }} ms |"
+          echo "| + content:max-lines:400 + max-line-length  | ${{ steps.t_full.outputs.avg_ms }} ms |"
+          echo ""
+          naming=${{ steps.t_naming.outputs.avg_ms }}
+          maxlines=${{ steps.t_maxlines.outputs.avg_ms }}
+          full=${{ steps.t_full.outputs.avg_ms }}
+          if [ "$naming" -gt 0 ]; then
+            overhead_ml=$(( (maxlines - naming) * 100 / naming ))
+            overhead_full=$(( (full - naming) * 100 / naming ))
+            echo "Content overhead:"
+            echo "  +max-lines           : +${overhead_ml}%"
+            echo "  +max-lines+ll        : +${overhead_full}%"
+          fi

@@ -142,6 +142,37 @@ naming rules plus line limits on all code files":
 - adding `max-line-length` on top of `max-lines` is still measurable, but it is
   a smaller incremental step than the initial transition into content reads
 
+## Real-world validation
+
+The synthetic benchmarks above are confirmed by running the current binary
+against actual open-source projects. The three projects were chosen to span a
+realistic range of codebase sizes:
+
+| Project | Source | Checked TS/TSX files | NamingOnly | + `content:max-lines:400` | + `content:max-lines:400` + `content:max-line-length:120` |
+| --- | --- | ---: | ---: | ---: | ---: |
+| bulletproof-react | alan2207/bulletproof-react | ~128 | 9 ms | 15 ms | 17 ms |
+| vite | vitejs/vite | ~546 | 10 ms | 16 ms | 17 ms |
+| nuxt | nuxt/nuxt | ~600 | 15 ms | 26 ms | 27 ms |
+
+*Averaged over three wall-clock runs on AMD EPYC 7763, depth-1 clone, ignores applied.*
+
+These numbers confirm the synthetic benchmark trend: the file-read transition
+dominates, and adding `max-line-length` on top of `max-lines` is a much
+smaller incremental step.
+
+The content rules also surface real issues in these codebases. Running
+`content:max-lines:400` on vite found 37 files that exceed the limit,
+including `packages/vite/src/node/config.ts` (2703 lines) and
+`packages/vite/src/node/build.ts` (1922 lines). Running the same config on
+nuxt found 20 violations, including `packages/nuxt/src/core/nuxt.ts`
+(1095 lines). These are exactly the kinds of large, central files that benefit
+from early feedback about their growth.
+
+To reproduce these numbers or re-run against newer project snapshots, use the
+GitHub Actions workflow at
+[`.github/workflows/real-world-perf.yml`](../../.github/workflows/real-world-perf.yml).
+Trigger it manually from the Actions tab or let it run on the weekly schedule.
+
 ## Remaining hot spots
 
 The current implementation already removed the most obvious duplication by
