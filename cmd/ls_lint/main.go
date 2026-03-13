@@ -83,7 +83,7 @@ func main() {
 		}
 
 		maps.Copy(lslintConfig.GetLs(), tmpLslintConfig.GetLs())
-		maps.Copy(lslintConfig.GetRuleGroups(), tmpLslintConfig.GetRuleGroups())
+		lslintConfig.MergeRuleGroups(tmpLslintConfig.GetRuleGroups())
 		lslintConfig.Ignore = append(lslintConfig.Ignore, tmpLslintConfig.GetIgnore()...)
 		slices.Sort(lslintConfig.Ignore)
 		lslintConfig.Ignore = slices.Compact(lslintConfig.Ignore)

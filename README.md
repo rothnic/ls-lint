@@ -206,6 +206,9 @@ so to relax or disable an inherited content check in a subtree you point that
 subtree at a different rule group that omits the `content:*` directive you no
 longer want.
 
+Each rule group can be written as a YAML list (preferred for readability) or as
+the same pipe-delimited string syntax used inline elsewhere.
+
 For a fuller JavaScript/TypeScript example with shared defaults, stricter
 overrides, and a path that disables the `max-lines` check, see
 [`examples/reusable_content_rule_sets/.ls-lint.yml`](examples/reusable_content_rule_sets/.ls-lint.yml).

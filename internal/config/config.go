@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"reflect"
 	"strings"
 	"sync"
@@ -61,7 +62,25 @@ func (config *Config) GetRuleGroups() map[string]interface{} {
 	config.RLock()
 	defer config.RUnlock()
 
-	return config.RuleGroups
+	ruleGroups := make(map[string]interface{}, len(config.RuleGroups))
+	for key, value := range config.RuleGroups {
+		ruleGroups[key] = cloneRuleGroupValue(value)
+	}
+
+	return ruleGroups
+}
+
+func (config *Config) MergeRuleGroups(ruleGroups map[string]interface{}) {
+	config.Lock()
+	defer config.Unlock()
+
+	if config.RuleGroups == nil {
+		config.RuleGroups = make(map[string]interface{})
+	}
+
+	for key, value := range ruleGroups {
+		config.RuleGroups[key] = cloneRuleGroupValue(value)
+	}
 }
 
 func (config *Config) GetIgnoreIndex() (*IgnoreIndex, error) {
@@ -219,6 +238,10 @@ func (config *Config) walkIndex(index RuleIndex, key string, list Ls) error {
 }
 
 func (config *Config) expandRuleNames(ruleNames []string, seenGroups map[string]bool) ([]string, error) {
+	if seenGroups == nil {
+		seenGroups = make(map[string]bool)
+	}
+
 	expanded := make([]string, 0, len(ruleNames))
 
 	for _, ruleName := range ruleNames {
@@ -246,32 +269,47 @@ func (config *Config) expandRuleNames(ruleNames []string, seenGroups map[string]
 
 func (config *Config) getRuleGroupRules(name string, seenGroups map[string]bool) ([]string, error) {
 	if name == "" {
-		return nil, fmt.Errorf("rule group name empty")
+		return nil, fmt.Errorf("rule group name is empty")
 	}
 	if seenGroups != nil && seenGroups[name] {
-		return nil, fmt.Errorf("rule group %s circular reference", name)
+		return nil, fmt.Errorf("circular reference detected in rule group %q", name)
 	}
 
 	groupValue, exists := config.GetRuleGroups()[name]
 	if !exists {
-		return nil, fmt.Errorf("rule group %s not exists", name)
+		return nil, fmt.Errorf("rule group %q does not exist", name)
 	}
 
-	groupEntries, err := normalizeRuleGroupEntries(groupValue)
+	groupEntries, err := normalizeRuleGroupEntries(name, groupValue)
 	if err != nil {
-		return nil, fmt.Errorf("rule group %s failed with %s", name, err.Error())
+		return nil, err
 	}
 
 	nextSeenGroups := make(map[string]bool, len(seenGroups)+1)
-	for key, value := range seenGroups {
-		nextSeenGroups[key] = value
-	}
+	maps.Copy(nextSeenGroups, seenGroups)
 	nextSeenGroups[name] = true
 
 	return config.expandRuleNames(groupEntries, nextSeenGroups)
 }
 
-func normalizeRuleGroupEntries(groupValue interface{}) ([]string, error) {
+func cloneRuleGroupValue(groupValue interface{}) interface{} {
+	switch value := groupValue.(type) {
+	case nil:
+		return nil
+	case []string:
+		return append([]string(nil), value...)
+	case []interface{}:
+		return append([]interface{}(nil), value...)
+	}
+
+	return groupValue
+}
+
+func normalizeRuleGroupEntries(name string, groupValue interface{}) ([]string, error) {
+	if groupValue == nil {
+		return nil, fmt.Errorf("rule group %q must be a string or list of strings, got <nil>", name)
+	}
+
 	switch reflect.TypeOf(groupValue).Kind() {
 	case reflect.String:
 		return strings.Split(groupValue.(string), or), nil
@@ -279,14 +317,15 @@ func normalizeRuleGroupEntries(groupValue interface{}) ([]string, error) {
 		groupSlice := reflect.ValueOf(groupValue)
 		entries := make([]string, 0, groupSlice.Len())
 		for i := 0; i < groupSlice.Len(); i++ {
-			entry, ok := groupSlice.Index(i).Interface().(string)
+			rawEntry := groupSlice.Index(i).Interface()
+			entry, ok := rawEntry.(string)
 			if !ok {
-				return nil, fmt.Errorf("rule group entry must be a string")
+				return nil, fmt.Errorf("rule group %q entry %d must be a string, got %T", name, i, rawEntry)
 			}
 			entries = append(entries, entry)
 		}
 		return entries, nil
 	default:
-		return nil, fmt.Errorf("rule group must be a string or list of strings")
+		return nil, fmt.Errorf("rule group %q must be a string or list of strings, got %T", name, groupValue)
 	}
 }
