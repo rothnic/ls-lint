@@ -5,12 +5,19 @@ go_library(
     srcs = ["config.go"],
     importpath = "github.com/loeffel-io/ls-lint/v2/internal/config",
     visibility = ["//:__subpackages__"],
-    deps = ["//internal/rule"],
+    deps = [
+        "//internal/rule",
+        "@com_github_bmatcuk_doublestar_v4//:doublestar",
+        "@in_yaml_go_yaml_v3//:yaml",
+    ],
 )
 
 go_test(
     name = "config_test",
     srcs = ["config_test.go"],
     embed = [":config"],
-    deps = ["//internal/rule"],
+    deps = [
+        "//internal/rule",
+        "@in_yaml_go_yaml_v3//:yaml",
+    ],
 )

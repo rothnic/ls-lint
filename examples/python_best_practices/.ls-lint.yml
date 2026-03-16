@@ -1,0 +1,183 @@
+# Python Best Practices
+#
+# A practical baseline for any Python project: application, library, CLI tool,
+# or Django/FastAPI service. Covers 90% of real-world Python use cases.
+#
+# Features used:
+#   - groups:           reusable rule sets (available in this fork)
+#   - @<name>:          compact group reference shorthand
+#   - content:*:        file-level structural guardrails
+#   - => "message":     per-rule remediation guidance
+#   - contexts:         stage-aware enforcement (pre-commit warn, pre-push fail)
+#
+# To use with lefthook, see examples/lefthook_integration/lefthook.yml
+
+# ---------------------------------------------------------------------------
+# Reusable rule groups
+# ---------------------------------------------------------------------------
+
+groups:
+  # Python source files use snake_case (PEP 8).
+  py-names:
+    - "snake_case => Python source files must use snake_case (PEP 8 convention)."
+
+  # Standard Python module: snake_case + bounded length.
+  py-defaults:
+    - "@py-names"
+    - "content:max-lines:400 => Keep Python modules under 400 lines. Extract into sub-modules when this limit is reached."
+
+  # Test files can be longer.
+  py-tests:
+    - "@py-names"
+    - "content:max-lines:600 => Test modules may be up to 600 lines. Split into focused test modules if longer."
+
+  # Generated code may be larger.
+  py-generated:
+    - "@py-names"
+    - "content:max-lines:2000 => Generated Python files may be large, but flag anything over 2000 lines."
+
+  # Documentation pages: kebab-case names, front matter, bounded length.
+  doc-page:
+    - "kebab-case => Documentation pages must use kebab-case filenames."
+    - "content:max-lines:300 => Keep docs under 300 lines. Split long docs into focused sub-pages."
+    - "content:front-matter:required => Docs require YAML front matter (at minimum: title and description)."
+
+# ---------------------------------------------------------------------------
+# File and directory naming rules
+# ---------------------------------------------------------------------------
+
+ls:
+  # All directories use snake_case (Python package convention).
+  .dir: snake_case
+
+  # Python source files: snake_case (PEP 8).
+  .py: "@py-defaults"
+
+  # Type stub files: same naming as the source file they describe.
+  .pyi: snake_case
+
+  # Compiled Python (should be in __pycache__, but just in case).
+  .pyc: snake_case
+
+  # Shell scripts: snake_case.
+  .sh: snake_case
+
+  # Configuration files: kebab-case or snake_case are both common.
+  .toml: kebab-case | snake_case
+  .cfg: kebab-case | snake_case
+  .ini: kebab-case | snake_case
+  .yaml: kebab-case | snake_case
+  .yml: kebab-case | snake_case
+  .json: kebab-case | snake_case
+
+  # Markdown documentation.
+  .md: "@doc-page"
+
+  # Root-level coordination docs.
+  README.md: "exists:0-1 => Provide a root README.md describing the project."
+  AGENTS.md: "exists:0-1 => Provide AGENTS.md for agent-specific guidance when needed."
+
+  # Allow common root Python project files.
+  pyproject.toml: exists:0-1
+  setup.py: exists:0-1
+  setup.cfg: exists:0-1
+  requirements.txt: exists:0-1
+  Makefile: exists:0-1
+
+  # Source package directory.
+  src:
+    .dir: snake_case
+    .py: "@py-defaults"
+
+  # Main application or library package.
+  # Adjust the package name to match your project.
+  src/*:
+    .dir: snake_case
+    .py: "@py-defaults"
+    __init__.py: exists:1
+
+  # Models: snake_case, often one model per file.
+  src/*/models:
+    .py: "@py-defaults"
+
+  # Services and business logic.
+  src/*/services:
+    .py: "@py-defaults"
+
+  # Utilities.
+  src/*/utils:
+    .py: "@py-defaults"
+
+  # API endpoints (Django views, FastAPI routers).
+  src/*/api:
+    .py: "@py-defaults"
+
+  # Tests: allow longer files for comprehensive test suites.
+  tests:
+    .dir: snake_case
+    .py: "@py-tests"
+
+  # Documentation.
+  docs:
+    .md: "@doc-page"
+
+  # Scripts: snake_case.
+  scripts:
+    .py: "@py-defaults"
+    .sh: snake_case
+
+  # Generated code: relaxed size limit.
+  generated:
+    .py: "@py-generated"
+
+# ---------------------------------------------------------------------------
+# Context directives
+#
+# These define stage-specific enforcement behavior. Select with --context.
+# Use with lefthook: see examples/lefthook_integration/lefthook.yml
+# ---------------------------------------------------------------------------
+
+contexts:
+  pre-commit:
+    mode: warn
+    hook: pre-commit
+    environment: local
+    message: >
+      Commit is not blocked. These are early warnings about naming conventions
+      and file size. Queue any quick cleanup before pushing.
+
+  pre-push:
+    mode: fail
+    hook: pre-push
+    environment: local
+    override: repository owner approval
+    references:
+      - docs/contributing.md
+    message: >
+      Push is blocked until these naming and structure requirements are
+      resolved. See docs/contributing.md for guidance, or request approval
+      from the repository owner to override.
+
+# ---------------------------------------------------------------------------
+# Ignore patterns
+#
+# ls-lint does not read .gitignore automatically. Exclude generated output
+# and dependency directories explicitly here.
+# ---------------------------------------------------------------------------
+
+ignore:
+  - .venv
+  - venv
+  - env
+  - __pycache__
+  - "**/__pycache__"
+  - "*.egg-info"
+  - "**/*.egg-info"
+  - .pytest_cache
+  - .mypy_cache
+  - .ruff_cache
+  - dist
+  - build
+  - htmlcov
+  - .tox
+  - "**/.env*"

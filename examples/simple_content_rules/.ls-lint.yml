@@ -1,0 +1,34 @@
+# Simple example: inline content rules, no groups.
+#
+# All JavaScript and TypeScript source files must:
+#   - follow camelCase or PascalCase naming
+#   - contain no more than 400 lines
+#
+# A few specific paths loosen or drop the line limit entirely.
+
+ls:
+  # Shared defaults for all JS/TS files under the project root.
+  .js: camelCase | PascalCase | content:max-lines:400
+  .jsx: camelCase | PascalCase | content:max-lines:400
+  .ts: camelCase | PascalCase | content:max-lines:400
+  .tsx: camelCase | PascalCase | content:max-lines:400
+
+  # Markdown docs must be kebab-case and must not exceed 250 lines.
+  .md: kebab-case | content:max-lines:250
+
+  # Auto-generated files are allowed to be larger.
+  generated:
+    .js: camelCase | PascalCase | content:max-lines:800
+    .ts: camelCase | PascalCase | content:max-lines:800
+
+  # Vendor / third-party code: keep the naming policy but remove the line limit.
+  vendor:
+    .js: camelCase | PascalCase
+    .ts: camelCase | PascalCase
+
+ignore:
+  - node_modules
+  - dist
+  - coverage
+  - .next
+  - build

@@ -118,6 +118,50 @@ func TestLinter_Run(t *testing.T) {
 			},
 		},
 		{
+			description: "fail with custom rule feedback",
+			filesystem: fstest.MapFS{
+				"not-snake-case.png": &fstest.MapFile{Mode: fs.ModePerm},
+			},
+			paths: nil,
+			linter: NewLinter(
+				".",
+				config.NewConfig(
+					config.Ls{
+						".png": "snake_case => PNG files must use snake_case",
+					},
+					[]string{},
+				),
+				&debug.Statistic{
+					Start:     start,
+					Files:     0,
+					FileSkips: 0,
+					Dirs:      0,
+					DirSkips:  0,
+					RWMutex:   new(sync.RWMutex),
+				},
+				[]*rule.Error{},
+			),
+			expectedErr: nil,
+			expectedStatistic: &debug.Statistic{
+				Start:     start,
+				Files:     1,
+				FileSkips: 0,
+				Dirs:      1,
+				DirSkips:  0,
+				RWMutex:   new(sync.RWMutex),
+			},
+			expectedErrors: []*rule.Error{
+				{
+					Path: "not-snake-case.png",
+					Ext:  ".png",
+					Rules: []rule.Rule{
+						rule.NewFeedback(new(rule.SnakeCase).Init(), "PNG files must use snake_case"),
+					},
+					RWMutex: new(sync.RWMutex),
+				},
+			},
+		},
+		{
 			description: "glob",
 			filesystem: fstest.MapFS{
 				"snake_case.png":                  &fstest.MapFile{Mode: fs.ModePerm},
@@ -729,6 +773,592 @@ func TestLinter_Run(t *testing.T) {
 				},
 			},
 		},
+		{
+			description: "exists with explicit file key",
+			filesystem: fstest.MapFS{
+				"pkg":           &fstest.MapFile{Mode: fs.ModeDir},
+				"pkg/AGENTS.md": &fstest.MapFile{Mode: fs.ModePerm},
+			},
+			paths: nil,
+			linter: NewLinter(
+				".",
+				config.NewConfig(
+					config.Ls{
+						"pkg": config.Ls{
+							"AGENTS.md": "exists:1",
+						},
+					},
+					[]string{},
+				),
+				&debug.Statistic{
+					Start:     start,
+					Files:     0,
+					FileSkips: 0,
+					Dirs:      0,
+					DirSkips:  0,
+					RWMutex:   new(sync.RWMutex),
+				},
+				[]*rule.Error{},
+			),
+			expectedErr: nil,
+			expectedStatistic: &debug.Statistic{
+				Start:     start,
+				Files:     1,
+				FileSkips: 0,
+				Dirs:      2,
+				DirSkips:  0,
+				RWMutex:   new(sync.RWMutex),
+			},
+			expectedErrors: []*rule.Error{},
+		},
+		{
+			description: "exists with explicit file key error",
+			filesystem: fstest.MapFS{
+				"pkg":           &fstest.MapFile{Mode: fs.ModeDir},
+				"pkg/README.md": &fstest.MapFile{Mode: fs.ModePerm},
+			},
+			paths: nil,
+			linter: NewLinter(
+				".",
+				config.NewConfig(
+					config.Ls{
+						"pkg": config.Ls{
+							"AGENTS.md": "exists:1",
+						},
+					},
+					[]string{},
+				),
+				&debug.Statistic{
+					Start:     start,
+					Files:     0,
+					FileSkips: 0,
+					Dirs:      0,
+					DirSkips:  0,
+					RWMutex:   new(sync.RWMutex),
+				},
+				[]*rule.Error{},
+			),
+			expectedErr: nil,
+			expectedStatistic: &debug.Statistic{
+				Start:     start,
+				Files:     1,
+				FileSkips: 0,
+				Dirs:      2,
+				DirSkips:  0,
+				RWMutex:   new(sync.RWMutex),
+			},
+			expectedErrors: []*rule.Error{
+				{
+					Path: "pkg",
+					Ext:  "AGENTS.md",
+					Rules: []rule.Rule{
+						new(rule.Exists).Init(),
+					},
+					RWMutex: new(sync.RWMutex),
+				},
+			},
+		},
+		{
+			description: "exists with explicit dir key",
+			filesystem: fstest.MapFS{
+				"packages":         &fstest.MapFile{Mode: fs.ModeDir},
+				"packages/app":     &fstest.MapFile{Mode: fs.ModeDir},
+				"packages/app/src": &fstest.MapFile{Mode: fs.ModeDir},
+			},
+			paths: nil,
+			linter: NewLinter(
+				".",
+				config.NewConfig(
+					config.Ls{
+						"packages": config.Ls{
+							".dir": "exists",
+						},
+						"packages/*": config.Ls{
+							".dir": "exists:1",
+							"src":  "exists:1",
+						},
+					},
+					[]string{},
+				),
+				&debug.Statistic{
+					Start:     start,
+					Files:     0,
+					FileSkips: 0,
+					Dirs:      0,
+					DirSkips:  0,
+					RWMutex:   new(sync.RWMutex),
+				},
+				[]*rule.Error{},
+			),
+			expectedErr: nil,
+			expectedStatistic: &debug.Statistic{
+				Start:     start,
+				Files:     0,
+				FileSkips: 0,
+				Dirs:      4,
+				DirSkips:  0,
+				RWMutex:   new(sync.RWMutex),
+			},
+			expectedErrors: []*rule.Error{},
+		},
+		{
+			description: "exists with explicit dir key error",
+			filesystem: fstest.MapFS{
+				"packages":         &fstest.MapFile{Mode: fs.ModeDir},
+				"packages/app":     &fstest.MapFile{Mode: fs.ModeDir},
+				"packages/app/lib": &fstest.MapFile{Mode: fs.ModeDir},
+			},
+			paths: nil,
+			linter: NewLinter(
+				".",
+				config.NewConfig(
+					config.Ls{
+						"packages": config.Ls{
+							".dir": "exists",
+						},
+						"packages/*": config.Ls{
+							".dir": "exists:1",
+							"src":  "exists:1",
+						},
+					},
+					[]string{},
+				),
+				&debug.Statistic{
+					Start:     start,
+					Files:     0,
+					FileSkips: 0,
+					Dirs:      0,
+					DirSkips:  0,
+					RWMutex:   new(sync.RWMutex),
+				},
+				[]*rule.Error{},
+			),
+			expectedErr: nil,
+			expectedStatistic: &debug.Statistic{
+				Start:     start,
+				Files:     0,
+				FileSkips: 0,
+				Dirs:      4,
+				DirSkips:  0,
+				RWMutex:   new(sync.RWMutex),
+			},
+			expectedErrors: []*rule.Error{
+				{
+					Path: "packages/app",
+					Ext:  "src",
+					Rules: []rule.Rule{
+						func() rule.Rule {
+							r := new(rule.Exists).Init()
+							_ = r.SetParameters([]string{"1"})
+							return r
+						}(),
+					},
+					RWMutex: new(sync.RWMutex),
+				},
+			},
+		},
+		{
+			description: "exists supports explicit mandatory keys",
+			filesystem: fstest.MapFS{
+				"packages":                      &fstest.MapFile{Mode: fs.ModeDir},
+				"packages/my-package":           &fstest.MapFile{Mode: fs.ModeDir},
+				"packages/my-package/AGENTS.md": &fstest.MapFile{Mode: fs.ModePerm},
+			},
+			paths: nil,
+			linter: NewLinter(
+				".",
+				config.NewConfig(
+					config.Ls{
+						"packages": config.Ls{
+							".dir": "exists",
+						},
+						"packages/*": config.Ls{
+							".dir":      "kebab-case | exists:1",
+							"AGENTS.md": "exists:1",
+						},
+					},
+					[]string{},
+				),
+				&debug.Statistic{
+					Start:     start,
+					Files:     0,
+					FileSkips: 0,
+					Dirs:      0,
+					DirSkips:  0,
+					RWMutex:   new(sync.RWMutex),
+				},
+				[]*rule.Error{},
+			),
+			expectedErr: nil,
+			expectedStatistic: &debug.Statistic{
+				Start:     start,
+				Files:     1,
+				FileSkips: 0,
+				Dirs:      3,
+				DirSkips:  0,
+				RWMutex:   new(sync.RWMutex),
+			},
+			expectedErrors: []*rule.Error{},
+		},
+		{
+			description: "exists explicit file key with error",
+			filesystem: fstest.MapFS{
+				"packages":                 &fstest.MapFile{Mode: fs.ModeDir},
+				"packages/foo":             &fstest.MapFile{Mode: fs.ModeDir},
+				"packages/bar":             &fstest.MapFile{Mode: fs.ModeDir},
+				"packages/bar/AGENTS.md":   &fstest.MapFile{Mode: fs.ModePerm},
+				"packages/bar/another.txt": &fstest.MapFile{Mode: fs.ModePerm},
+			},
+			paths: nil,
+			linter: NewLinter(
+				".",
+				config.NewConfig(
+					config.Ls{
+						"packages": config.Ls{
+							".dir": "exists",
+						},
+						"packages/*": config.Ls{
+							".dir":      "kebab-case | exists:1",
+							"AGENTS.md": "exists:1",
+						},
+					},
+					[]string{},
+				),
+				&debug.Statistic{
+					Start:     start,
+					Files:     0,
+					FileSkips: 0,
+					Dirs:      0,
+					DirSkips:  0,
+					RWMutex:   new(sync.RWMutex),
+				},
+				[]*rule.Error{},
+			),
+			expectedErr: nil,
+			expectedStatistic: &debug.Statistic{
+				Start:     start,
+				Files:     2,
+				FileSkips: 0,
+				Dirs:      4,
+				DirSkips:  0,
+				RWMutex:   new(sync.RWMutex),
+			},
+			expectedErrors: []*rule.Error{
+				{
+					Path: "packages/foo",
+					Ext:  "AGENTS.md",
+					Rules: []rule.Rule{
+						func() rule.Rule {
+							r := new(rule.Exists).Init()
+							_ = r.SetParameters([]string{"1"})
+							return r
+						}(),
+					},
+					RWMutex: new(sync.RWMutex),
+				},
+			},
+		},
+		{
+			description: "exists explicit file key with paths and bypass error",
+			filesystem: fstest.MapFS{
+				"packages":                     &fstest.MapFile{Mode: fs.ModeDir},
+				"packages/foo":                 &fstest.MapFile{Mode: fs.ModeDir},
+				"packages/bar":                 &fstest.MapFile{Mode: fs.ModeDir},
+				"packages/bar/AGENTS.md":       &fstest.MapFile{Mode: fs.ModePerm},
+				"packages/bar/another_file.md": &fstest.MapFile{Mode: fs.ModePerm},
+			},
+			paths: map[string]struct{}{
+				"packages/bar/AGENTS.md": {},
+			},
+			linter: NewLinter(
+				".",
+				config.NewConfig(
+					config.Ls{
+						"packages": config.Ls{
+							".dir": "exists",
+						},
+						"packages/*": config.Ls{
+							".dir":      "kebab-case | exists:1",
+							"AGENTS.md": "exists:1",
+							".md":       "exists:1-2",
+						},
+					},
+					[]string{},
+				),
+				&debug.Statistic{
+					Start:     start,
+					Files:     0,
+					FileSkips: 0,
+					Dirs:      0,
+					DirSkips:  0,
+					RWMutex:   new(sync.RWMutex),
+				},
+				[]*rule.Error{},
+			),
+			expectedErr: nil,
+			expectedStatistic: &debug.Statistic{
+				Start:     start,
+				Files:     2,
+				FileSkips: 0,
+				Dirs:      4,
+				DirSkips:  0,
+				RWMutex:   new(sync.RWMutex),
+			},
+			expectedErrors: []*rule.Error{},
+		},
+		{
+			description: "exists explicit file key with range combined error",
+			filesystem: fstest.MapFS{
+				"packages":          &fstest.MapFile{Mode: fs.ModeDir},
+				"packages/foo":      &fstest.MapFile{Mode: fs.ModeDir},
+				"packages/foo/B.md": &fstest.MapFile{Mode: fs.ModePerm},
+				"packages/bar":      &fstest.MapFile{Mode: fs.ModeDir},
+				"packages/bar/C.md": &fstest.MapFile{Mode: fs.ModePerm},
+				"packages/bar/D.md": &fstest.MapFile{Mode: fs.ModePerm},
+				"packages/bar/E.md": &fstest.MapFile{Mode: fs.ModePerm},
+			},
+			paths: nil,
+			linter: NewLinter(
+				".",
+				config.NewConfig(
+					config.Ls{
+						"packages": config.Ls{
+							".dir": "exists",
+						},
+						"packages/*": config.Ls{
+							".dir":      "kebab-case | exists:1",
+							"AGENTS.md": "exists:1",
+							".md":       "exists:1-2",
+						},
+					},
+					[]string{},
+				),
+				&debug.Statistic{
+					Start:     start,
+					Files:     0,
+					FileSkips: 0,
+					Dirs:      0,
+					DirSkips:  0,
+					RWMutex:   new(sync.RWMutex),
+				},
+				[]*rule.Error{},
+			),
+			expectedErr: nil,
+			expectedStatistic: &debug.Statistic{
+				Start:     start,
+				Files:     4,
+				FileSkips: 0,
+				Dirs:      4,
+				DirSkips:  0,
+				RWMutex:   new(sync.RWMutex),
+			},
+			expectedErrors: []*rule.Error{
+				{
+					Path: "packages/bar",
+					Ext:  "AGENTS.md",
+					Rules: []rule.Rule{
+						func() rule.Rule {
+							r := new(rule.Exists).Init()
+							_ = r.SetParameters([]string{"1"})
+							return r
+						}(),
+					},
+					RWMutex: new(sync.RWMutex),
+				},
+				{
+					Path: "packages/bar",
+					Ext:  ".md",
+					Rules: []rule.Rule{
+						func() rule.Rule {
+							r := new(rule.Exists).Init()
+							_ = r.SetParameters([]string{"1-2"})
+							return r
+						}(),
+					},
+					RWMutex: new(sync.RWMutex),
+				},
+				{
+					Path: "packages/foo",
+					Ext:  "AGENTS.md",
+					Rules: []rule.Rule{
+						func() rule.Rule {
+							r := new(rule.Exists).Init()
+							_ = r.SetParameters([]string{"1"})
+							return r
+						}(),
+					},
+					RWMutex: new(sync.RWMutex),
+				},
+			},
+		},
+		{
+			description: "exists monorepo typescript ui example",
+			filesystem: fstest.MapFS{
+				"packages":                                          &fstest.MapFile{Mode: fs.ModeDir},
+				"packages/ui":                                       &fstest.MapFile{Mode: fs.ModeDir},
+				"packages/ui/AGENTS.md":                             &fstest.MapFile{Mode: fs.ModePerm},
+				"packages/ui/README.md":                             &fstest.MapFile{Mode: fs.ModePerm},
+				"packages/ui/CLAUDE.md":                             &fstest.MapFile{Mode: fs.ModePerm},
+				"packages/ui/src":                                   &fstest.MapFile{Mode: fs.ModeDir},
+				"packages/ui/src/components":                        &fstest.MapFile{Mode: fs.ModeDir},
+				"packages/ui/src/components/button":                 &fstest.MapFile{Mode: fs.ModeDir},
+				"packages/ui/src/components/button/button.tsx":      &fstest.MapFile{Mode: fs.ModePerm},
+				"packages/ui/src/components/button/button.test.tsx": &fstest.MapFile{Mode: fs.ModePerm},
+			},
+			paths: nil,
+			linter: NewLinter(
+				".",
+				config.NewConfig(
+					config.Ls{
+						"packages": config.Ls{
+							".dir": "kebab-case",
+						},
+						"packages/*": config.Ls{
+							".dir":      "kebab-case",
+							".md":       "regex:^(AGENTS|README|CLAUDE|GEMINI)$",
+							"AGENTS.md": "exists:1",
+							"README.md": "exists:1",
+							"src":       "exists:1",
+						},
+						"packages/ui/src/components": config.Ls{
+							".dir": "kebab-case | exists",
+							".tsx": "exists:0",
+						},
+						"packages/ui/src/components/*": config.Ls{
+							".tsx":      "regex:${0} | exists:1",
+							".test.tsx": "regex:${0} | exists:1",
+						},
+					},
+					[]string{},
+				),
+				&debug.Statistic{
+					Start:     start,
+					Files:     0,
+					FileSkips: 0,
+					Dirs:      0,
+					DirSkips:  0,
+					RWMutex:   new(sync.RWMutex),
+				},
+				[]*rule.Error{},
+			),
+			expectedErr: nil,
+			expectedStatistic: &debug.Statistic{
+				Start:     start,
+				Files:     5,
+				FileSkips: 0,
+				Dirs:      6,
+				DirSkips:  0,
+				RWMutex:   new(sync.RWMutex),
+			},
+			expectedErrors: []*rule.Error{},
+		},
+		{
+			description: "exists monorepo typescript ui example with errors",
+			filesystem: fstest.MapFS{
+				"packages":                                  &fstest.MapFile{Mode: fs.ModeDir},
+				"packages/ui":                               &fstest.MapFile{Mode: fs.ModeDir},
+				"packages/ui/AGENTS.md":                     &fstest.MapFile{Mode: fs.ModePerm},
+				"packages/ui/src":                           &fstest.MapFile{Mode: fs.ModeDir},
+				"packages/ui/src/components":                &fstest.MapFile{Mode: fs.ModeDir},
+				"packages/ui/src/components/Button.tsx":     &fstest.MapFile{Mode: fs.ModePerm},
+				"packages/ui/src/components/NOT_ALLOWED.md": &fstest.MapFile{Mode: fs.ModePerm},
+			},
+			paths: nil,
+			linter: NewLinter(
+				".",
+				config.NewConfig(
+					config.Ls{
+						"packages": config.Ls{
+							".dir": "kebab-case",
+						},
+						"packages/*": config.Ls{
+							".dir":      "kebab-case",
+							".md":       "regex:^(AGENTS|README|CLAUDE|GEMINI)$",
+							"AGENTS.md": "exists:1",
+							"README.md": "exists:1",
+							"src":       "exists:1",
+						},
+						"packages/ui/src/components": config.Ls{
+							".dir": "kebab-case | exists",
+							".tsx": "exists:0",
+						},
+						"packages/ui/src/components/*": config.Ls{
+							".tsx":      "regex:${0} | exists:1",
+							".test.tsx": "regex:${0} | exists:1",
+						},
+					},
+					[]string{},
+				),
+				&debug.Statistic{
+					Start:     start,
+					Files:     0,
+					FileSkips: 0,
+					Dirs:      0,
+					DirSkips:  0,
+					RWMutex:   new(sync.RWMutex),
+				},
+				[]*rule.Error{},
+			),
+			expectedErr: nil,
+			expectedStatistic: &debug.Statistic{
+				Start:     start,
+				Files:     3,
+				FileSkips: 0,
+				Dirs:      5,
+				DirSkips:  0,
+				RWMutex:   new(sync.RWMutex),
+			},
+			expectedErrors: []*rule.Error{
+				{
+					Path: "packages/ui",
+					Ext:  "README.md",
+					Rules: []rule.Rule{
+						func() rule.Rule {
+							r := new(rule.Exists).Init()
+							_ = r.SetParameters([]string{"1"})
+							return r
+						}(),
+					},
+					RWMutex: new(sync.RWMutex),
+				},
+				{
+					Path: "packages/ui/src/components",
+					Ext:  ".tsx",
+					Rules: []rule.Rule{
+						func() rule.Rule {
+							r := new(rule.Exists).Init()
+							_ = r.SetParameters([]string{"0"})
+							return r
+						}(),
+					},
+					RWMutex: new(sync.RWMutex),
+				},
+				{
+					Path: "packages/ui/src/components/*",
+					Ext:  ".test.tsx",
+					Rules: []rule.Rule{
+						func() rule.Rule {
+							r := new(rule.Exists).Init()
+							_ = r.SetParameters([]string{"1"})
+							return r
+						}(),
+					},
+					RWMutex: new(sync.RWMutex),
+				},
+				{
+					Path: "packages/ui/src/components/*",
+					Ext:  ".tsx",
+					Rules: []rule.Rule{
+						func() rule.Rule {
+							r := new(rule.Exists).Init()
+							_ = r.SetParameters([]string{"1"})
+							return r
+						}(),
+					},
+					RWMutex: new(sync.RWMutex),
+				},
+			},
+		},
 	}
 
 	i := 0
@@ -784,7 +1414,28 @@ func TestLinter_Run(t *testing.T) {
 			var k int
 			var tmpRule rule.Rule
 			for k, tmpRule = range tmpError.GetRules() {
-				if tmpRule.GetName() != test.expectedErrors[j].GetRules()[k].GetName() {
+				expectedRule := test.expectedErrors[j].GetRules()[k]
+				if tmpRule.GetName() != expectedRule.GetName() {
+					t.Error(equalErrorsErr)
+					return
+				}
+
+				expectedRuleParameters := expectedRule.GetParameters()
+				compareRuleParameters := len(expectedRuleParameters) > 0
+				if tmpRule.GetName() == "exists" && reflect.DeepEqual(expectedRuleParameters, new(rule.Exists).Init().GetParameters()) {
+					compareRuleParameters = false
+				}
+
+				_, hasCustomFeedback := expectedRule.(*rule.Feedback)
+				shouldCompareErrorMessage := tmpRule.GetName() != "exists" || hasCustomFeedback
+				if shouldCompareErrorMessage {
+					if tmpRule.GetErrorMessage() != expectedRule.GetErrorMessage() {
+						t.Error(equalErrorsErr)
+						return
+					}
+				}
+
+				if compareRuleParameters && !reflect.DeepEqual(tmpRule.GetParameters(), expectedRuleParameters) {
 					t.Error(equalErrorsErr)
 					return
 				}
@@ -793,4 +1444,456 @@ func TestLinter_Run(t *testing.T) {
 
 		i++
 	}
+}
+
+func TestLinter_Run_ContentRules(t *testing.T) {
+	tests := []struct {
+		description          string
+		filesystem           fs.FS
+		config               *config.Config
+		expectedRuleMessages []string
+		expectedPath         string
+		expectedExt          string
+	}{
+		{
+			description: "content rules pass",
+			filesystem: fstest.MapFS{
+				"docs":          &fstest.MapFile{Mode: fs.ModeDir},
+				"docs/guide.md": &fstest.MapFile{Data: []byte("---\ntitle: Guide\n---\n## Overview\nshort line\n"), Mode: fs.ModePerm},
+			},
+			config: config.NewConfig(config.Ls{
+				"docs": config.Ls{
+					".md": "kebab-case | content:max-lines:5 | content:max-line-length:20 | content:heading:^## Overview$ | content:front-matter:required",
+				},
+			}, nil),
+		},
+		{
+			description: "content rules fail even when filename rule passes",
+			filesystem: fstest.MapFS{
+				"docs":               &fstest.MapFile{Mode: fs.ModeDir},
+				"docs/guide-page.md": &fstest.MapFile{Data: []byte("# Intro\nline two\nthis line is too long\n"), Mode: fs.ModePerm},
+			},
+			config: config.NewConfig(config.Ls{
+				"docs": config.Ls{
+					".md": "kebab-case | content:max-lines:2 | content:max-line-length:10 | content:heading:^## Overview$ | content:front-matter:required",
+				},
+			}, nil),
+			expectedPath: "docs/guide-page.md",
+			expectedExt:  ".md",
+			expectedRuleMessages: []string{
+				"content:max-lines:2 (found 3)",
+				"content:max-line-length:10 (found 21)",
+				"content:heading:^## Overview$",
+				"content:front-matter:required",
+			},
+		},
+		{
+			description: "more specific path overrides can disable inherited content checks",
+			filesystem: fstest.MapFS{
+				"src":                    &fstest.MapFile{Mode: fs.ModeDir},
+				"src/core":               &fstest.MapFile{Mode: fs.ModeDir},
+				"src/core/mainFile.ts":   &fstest.MapFile{Data: []byte("line one\nline two\nline three\n"), Mode: fs.ModePerm},
+				"src/vendor":             &fstest.MapFile{Mode: fs.ModeDir},
+				"src/vendor/mainFile.ts": &fstest.MapFile{Data: []byte("line one\nline two\nline three\n"), Mode: fs.ModePerm},
+			},
+			config: func() *config.Config {
+				config := config.NewConfig(config.Ls{
+					".ts": "group:jsTsDefault",
+					"src/vendor": config.Ls{
+						".ts": "group:jsTsNamingOnly",
+					},
+				}, nil)
+				config.Groups["jsTsDefault"] = []string{"camelCase", "content:max-lines:2"}
+				config.Groups["jsTsNamingOnly"] = []string{"camelCase"}
+				return config
+			}(),
+			expectedPath: "src/core/mainFile.ts",
+			expectedExt:  ".ts",
+			expectedRuleMessages: []string{
+				"content:max-lines:2 (found 3)",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		linter := NewLinter(
+			".",
+			test.config,
+			&debug.Statistic{
+				Start:   time.Now(),
+				RWMutex: new(sync.RWMutex),
+			},
+			[]*rule.Error{},
+		)
+
+		err := linter.Run(test.filesystem, nil, false)
+		if err != nil {
+			t.Fatalf("%s: expected no error, got %v", test.description, err)
+		}
+
+		errors := linter.GetErrors()
+		if len(test.expectedRuleMessages) == 0 {
+			if len(errors) != 0 {
+				t.Fatalf("%s: expected no lint errors, got %+v", test.description, errors)
+			}
+			continue
+		}
+
+		if len(errors) != 1 {
+			t.Fatalf("%s: expected one lint error, got %+v", test.description, errors)
+		}
+		if errors[0].GetPath() != test.expectedPath {
+			t.Fatalf("%s: expected error path %s, got %s", test.description, test.expectedPath, errors[0].GetPath())
+		}
+		if errors[0].GetExt() != test.expectedExt {
+			t.Fatalf("%s: expected error ext %s, got %s", test.description, test.expectedExt, errors[0].GetExt())
+		}
+
+		ruleMessages := make([]string, 0, len(errors[0].GetRules()))
+		for _, errRule := range errors[0].GetRules() {
+			ruleMessages = append(ruleMessages, errRule.GetErrorMessage())
+		}
+		if !reflect.DeepEqual(ruleMessages, test.expectedRuleMessages) {
+			t.Fatalf("%s: expected rule messages %v, got %v", test.description, test.expectedRuleMessages, ruleMessages)
+		}
+	}
+}
+
+func TestLinter_Run_MonorepoComplexConstraints(t *testing.T) {
+	newMonorepoLs := func() config.Ls {
+		return config.Ls{
+			".dir":                "kebab-case",
+			".md":                 "kebab-case | regex:^(README|AGENTS|CLAUDE|GEMINI)$",
+			".*":                  "exists:0",
+			".json":               "regex:^(package|turbo)$",
+			".*.json":             "regex:^tsconfig\\.base$",
+			".yaml":               "regex:^pnpm-workspace$",
+			"package.json":        "exists:1",
+			"pnpm-workspace.yaml": "exists:1",
+			"turbo.json":          "exists:0-1",
+			"tsconfig.base.json":  "exists:0-1",
+			"README.md":           "exists:0-1",
+			"AGENTS.md":           "exists:0-1",
+			"CLAUDE.md":           "exists:0-1",
+			"GEMINI.md":           "exists:0-1",
+			"packages": config.Ls{
+				".dir": "kebab-case",
+			},
+			"packages/*": config.Ls{
+				".dir":      "kebab-case",
+				".md":       "regex:^(AGENTS|README|CLAUDE|GEMINI)$",
+				".ts":       "camelCase | PascalCase",
+				".tsx":      "camelCase | PascalCase",
+				".js":       "camelCase | PascalCase",
+				".jsx":      "camelCase | PascalCase",
+				"AGENTS.md": "exists:1",
+				"README.md": "exists:1",
+				"src":       "exists:1",
+			},
+			"packages/ui/src/components": config.Ls{
+				".dir": "kebab-case | exists",
+				".tsx": "exists:0",
+			},
+			"packages/ui/src/components/*": config.Ls{
+				".tsx":      "regex:${0} | exists:1",
+				".test.tsx": "regex:${0} | exists:1",
+			},
+		}
+	}
+
+	newMonorepoIgnore := func() []string {
+		return []string{
+			"node_modules",
+			".next",
+			"coverage",
+			"dist",
+			"build",
+			"packages/ui/dist",
+			".env*",
+			"**/.env*",
+		}
+	}
+
+	newMonorepoLinter := func() *Linter {
+		return NewLinter(
+			".",
+			config.NewConfig(
+				newMonorepoLs(),
+				newMonorepoIgnore(),
+			),
+			&debug.Statistic{
+				Start:     time.Now(),
+				Files:     0,
+				FileSkips: 0,
+				Dirs:      0,
+				DirSkips:  0,
+				RWMutex:   new(sync.RWMutex),
+			},
+			[]*rule.Error{},
+		)
+	}
+
+	t.Run("passes with multiple packages and optional whitelisted files", func(t *testing.T) {
+		filesystem := fstest.MapFS{
+			"package.json":                      &fstest.MapFile{Mode: fs.ModePerm},
+			"pnpm-workspace.yaml":               &fstest.MapFile{Mode: fs.ModePerm},
+			"turbo.json":                        &fstest.MapFile{Mode: fs.ModePerm},
+			"tsconfig.base.json":                &fstest.MapFile{Mode: fs.ModePerm},
+			"README.md":                         &fstest.MapFile{Mode: fs.ModePerm},
+			"AGENTS.md":                         &fstest.MapFile{Mode: fs.ModePerm},
+			"architecture-notes.md":             &fstest.MapFile{Mode: fs.ModePerm},
+			".env.local":                        &fstest.MapFile{Mode: fs.ModePerm},
+			"node_modules":                      &fstest.MapFile{Mode: fs.ModeDir},
+			"node_modules/BAD_NAME.js":          &fstest.MapFile{Mode: fs.ModePerm},
+			".next":                             &fstest.MapFile{Mode: fs.ModeDir},
+			".next/BAD_NAME.js":                 &fstest.MapFile{Mode: fs.ModePerm},
+			"build":                             &fstest.MapFile{Mode: fs.ModeDir},
+			"build/BAD_NAME.js":                 &fstest.MapFile{Mode: fs.ModePerm},
+			"dist":                              &fstest.MapFile{Mode: fs.ModeDir},
+			"dist/BAD_NAME.js":                  &fstest.MapFile{Mode: fs.ModePerm},
+			"coverage":                          &fstest.MapFile{Mode: fs.ModeDir},
+			"coverage/BAD_NAME.js":              &fstest.MapFile{Mode: fs.ModePerm},
+			"packages":                          &fstest.MapFile{Mode: fs.ModeDir},
+			"packages/ui":                       &fstest.MapFile{Mode: fs.ModeDir},
+			"packages/ui/AGENTS.md":             &fstest.MapFile{Mode: fs.ModePerm},
+			"packages/ui/README.md":             &fstest.MapFile{Mode: fs.ModePerm},
+			"packages/ui/GEMINI.md":             &fstest.MapFile{Mode: fs.ModePerm},
+			"packages/ui/.env.development":      &fstest.MapFile{Mode: fs.ModePerm},
+			"packages/ui/src":                   &fstest.MapFile{Mode: fs.ModeDir},
+			"packages/ui/src/useButton.ts":      &fstest.MapFile{Mode: fs.ModePerm},
+			"packages/ui/src/components":        &fstest.MapFile{Mode: fs.ModeDir},
+			"packages/ui/src/components/button": &fstest.MapFile{Mode: fs.ModeDir},
+			"packages/ui/src/components/button/button.tsx":      &fstest.MapFile{Mode: fs.ModePerm},
+			"packages/ui/src/components/button/button.test.tsx": &fstest.MapFile{Mode: fs.ModePerm},
+			"packages/ui/dist":                     &fstest.MapFile{Mode: fs.ModeDir},
+			"packages/ui/dist/BAD_NAME.tsx":        &fstest.MapFile{Mode: fs.ModePerm},
+			"packages/data-model":                  &fstest.MapFile{Mode: fs.ModeDir},
+			"packages/data-model/AGENTS.md":        &fstest.MapFile{Mode: fs.ModePerm},
+			"packages/data-model/README.md":        &fstest.MapFile{Mode: fs.ModePerm},
+			"packages/data-model/src":              &fstest.MapFile{Mode: fs.ModeDir},
+			"packages/data-model/src/userModel.ts": &fstest.MapFile{Mode: fs.ModePerm},
+		}
+
+		l := newMonorepoLinter()
+		err := l.Run(filesystem, nil, true)
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if len(l.GetErrors()) != 0 {
+			t.Fatalf("expected no lint errors, got %+v", l.GetErrors())
+		}
+	})
+
+	t.Run("fails for required monorepo constraints", func(t *testing.T) {
+		filesystem := fstest.MapFS{
+			"pnpm-workspace.yaml":                       &fstest.MapFile{Mode: fs.ModePerm},
+			"package-lock.json":                         &fstest.MapFile{Mode: fs.ModePerm},
+			"tsconfig.app.json":                         &fstest.MapFile{Mode: fs.ModePerm},
+			"debug.log":                                 &fstest.MapFile{Mode: fs.ModePerm},
+			"NOTES.md":                                  &fstest.MapFile{Mode: fs.ModePerm},
+			".env.local":                                &fstest.MapFile{Mode: fs.ModePerm},
+			"build":                                     &fstest.MapFile{Mode: fs.ModeDir},
+			"build/IGNORED_BAD_NAME.ts":                 &fstest.MapFile{Mode: fs.ModePerm},
+			"packages":                                  &fstest.MapFile{Mode: fs.ModeDir},
+			"packages/Bad_Pkg":                          &fstest.MapFile{Mode: fs.ModeDir},
+			"packages/Bad_Pkg/AGENTS.md":                &fstest.MapFile{Mode: fs.ModePerm},
+			"packages/Bad_Pkg/README.md":                &fstest.MapFile{Mode: fs.ModePerm},
+			"packages/Bad_Pkg/src":                      &fstest.MapFile{Mode: fs.ModeDir},
+			"packages/ui":                               &fstest.MapFile{Mode: fs.ModeDir},
+			"packages/ui/AGENTS.md":                     &fstest.MapFile{Mode: fs.ModePerm},
+			"packages/ui/NOTES.md":                      &fstest.MapFile{Mode: fs.ModePerm},
+			"packages/ui/.env.test":                     &fstest.MapFile{Mode: fs.ModePerm},
+			"packages/ui/src":                           &fstest.MapFile{Mode: fs.ModeDir},
+			"packages/ui/src/bad-name.js":               &fstest.MapFile{Mode: fs.ModePerm},
+			"packages/ui/src/components":                &fstest.MapFile{Mode: fs.ModeDir},
+			"packages/ui/src/components/Button.tsx":     &fstest.MapFile{Mode: fs.ModePerm},
+			"packages/ui/src/components/NOT_ALLOWED.md": &fstest.MapFile{Mode: fs.ModePerm},
+			"packages/ui/dist":                          &fstest.MapFile{Mode: fs.ModeDir},
+			"packages/ui/dist/IGNORED_BAD_NAME.tsx":     &fstest.MapFile{Mode: fs.ModePerm},
+		}
+
+		l := newMonorepoLinter()
+		err := l.Run(filesystem, nil, true)
+		if err != nil {
+			t.Fatalf("expected no execution error, got %v", err)
+		}
+		assertErrorHasRule(t, l.GetErrors(), "", "package.json", "exists")
+		assertErrorHasRule(t, l.GetErrors(), "package-lock.json", ".json", "regex")
+		assertErrorHasRule(t, l.GetErrors(), "tsconfig.app.json", ".*.json", "regex")
+		assertErrorHasRule(t, l.GetErrors(), "", ".*", "exists")
+		assertErrorHasRule(t, l.GetErrors(), "NOTES.md", ".md", "kebabcase")
+		assertErrorHasRule(t, l.GetErrors(), "packages/Bad_Pkg", ".dir", "kebabcase")
+		assertErrorHasRule(t, l.GetErrors(), "packages/ui/NOTES.md", ".md", "regex")
+		assertErrorHasRule(t, l.GetErrors(), "packages/ui/src/bad-name.js", ".js", "camelcase")
+		assertErrorHasRule(t, l.GetErrors(), "packages/ui", "README.md", "exists")
+		assertErrorHasRule(t, l.GetErrors(), "packages/ui/src/components", ".tsx", "exists")
+		assertErrorHasRule(t, l.GetErrors(), "packages/ui/src/components/*", ".tsx", "exists")
+		assertErrorHasRule(t, l.GetErrors(), "packages/ui/src/components/*", ".test.tsx", "exists")
+	})
+}
+
+func TestLinter_Run_LargeRepoIgnoreConfigs(t *testing.T) {
+	const (
+		packageCount                  = 250
+		filesPerPackage               = 80
+		maxPerformanceRegressionRatio = 5.0
+	)
+
+	newLargeRepoLs := func(withRootCatchAll bool) config.Ls {
+		ls := config.Ls{
+			".dir":                "kebab-case",
+			".md":                 "kebab-case | regex:^(README|AGENTS|CLAUDE|GEMINI)$",
+			".json":               "regex:^(package|turbo)$",
+			".*.json":             "regex:^tsconfig\\.base$",
+			".yaml":               "regex:^pnpm-workspace$",
+			"package.json":        "exists:1",
+			"pnpm-workspace.yaml": "exists:1",
+			"turbo.json":          "exists:0-1",
+			"tsconfig.base.json":  "exists:0-1",
+			"README.md":           "exists:0-1",
+			"AGENTS.md":           "exists:0-1",
+			"CLAUDE.md":           "exists:0-1",
+			"GEMINI.md":           "exists:0-1",
+			"packages": config.Ls{
+				".dir": "kebab-case",
+			},
+			"packages/*": config.Ls{
+				".dir":      "kebab-case",
+				".md":       "regex:^(AGENTS|README|CLAUDE|GEMINI)$",
+				".ts":       "camelCase | PascalCase",
+				".tsx":      "camelCase | PascalCase",
+				".js":       "camelCase | PascalCase",
+				".jsx":      "camelCase | PascalCase",
+				"AGENTS.md": "exists:1",
+				"README.md": "exists:1",
+				"src":       "exists:1",
+			},
+		}
+		if withRootCatchAll {
+			ls[".*"] = "exists:0"
+		}
+
+		return ls
+	}
+
+	newLargeRepoIgnore := func() []string {
+		return []string{
+			"node_modules",
+			".next",
+			"coverage",
+			"dist",
+			"build",
+			".env*",
+			"**/.env*",
+		}
+	}
+
+	newLargeRepoLinter := func(withRootCatchAll bool) *Linter {
+		return NewLinter(
+			".",
+			config.NewConfig(newLargeRepoLs(withRootCatchAll), newLargeRepoIgnore()),
+			&debug.Statistic{
+				Start:     time.Now(),
+				Files:     0,
+				FileSkips: 0,
+				Dirs:      0,
+				DirSkips:  0,
+				RWMutex:   new(sync.RWMutex),
+			},
+			[]*rule.Error{},
+		)
+	}
+
+	buildLargeRepoFS := func(packageCount int, filesPerPackage int) fstest.MapFS {
+		filesystem := fstest.MapFS{
+			"package.json":        &fstest.MapFile{Mode: fs.ModePerm},
+			"pnpm-workspace.yaml": &fstest.MapFile{Mode: fs.ModePerm},
+			"tsconfig.base.json":  &fstest.MapFile{Mode: fs.ModePerm},
+			"README.md":           &fstest.MapFile{Mode: fs.ModePerm},
+			"AGENTS.md":           &fstest.MapFile{Mode: fs.ModePerm},
+			".env.local":          &fstest.MapFile{Mode: fs.ModePerm},
+			"packages":            &fstest.MapFile{Mode: fs.ModeDir},
+			"node_modules":        &fstest.MapFile{Mode: fs.ModeDir},
+			"node_modules/bad.js": &fstest.MapFile{Mode: fs.ModePerm},
+			"dist":                &fstest.MapFile{Mode: fs.ModeDir},
+			"dist/bad.js":         &fstest.MapFile{Mode: fs.ModePerm},
+		}
+
+		for i := 0; i < packageCount; i++ {
+			packageName := fmt.Sprintf("package-%04d", i)
+			packageDir := fmt.Sprintf("packages/%s", packageName)
+			srcDir := fmt.Sprintf("%s/src", packageDir)
+
+			filesystem[packageDir] = &fstest.MapFile{Mode: fs.ModeDir}
+			filesystem[fmt.Sprintf("%s/AGENTS.md", packageDir)] = &fstest.MapFile{Mode: fs.ModePerm}
+			filesystem[fmt.Sprintf("%s/README.md", packageDir)] = &fstest.MapFile{Mode: fs.ModePerm}
+			filesystem[srcDir] = &fstest.MapFile{Mode: fs.ModeDir}
+			filesystem[fmt.Sprintf("%s/.env.test", packageDir)] = &fstest.MapFile{Mode: fs.ModePerm}
+
+			for j := 0; j < filesPerPackage; j++ {
+				filesystem[fmt.Sprintf("%s/useFeature%d.ts", srcDir, j)] = &fstest.MapFile{Mode: fs.ModePerm}
+			}
+		}
+
+		return filesystem
+	}
+
+	measureRun := func(t *testing.T, withRootCatchAll bool, filesystem fstest.MapFS) time.Duration {
+		t.Helper()
+
+		l := newLargeRepoLinter(withRootCatchAll)
+		start := time.Now()
+		err := l.Run(filesystem, nil, false)
+		duration := time.Since(start)
+		if err != nil {
+			t.Fatalf("expected no execution error, got %v", err)
+		}
+		if len(l.GetErrors()) != 0 {
+			t.Fatalf("expected no lint errors, got %+v", l.GetErrors())
+		}
+
+		return duration
+	}
+
+	filesystem := buildLargeRepoFS(packageCount, filesPerPackage)
+	t.Logf(
+		"large repo simulation contains %d packages with %d source files each (> %d source files total), plus package metadata, ignored env files, and directories",
+		packageCount,
+		filesPerPackage,
+		packageCount*filesPerPackage,
+	)
+
+	withRootCatchAll := measureRun(t, true, filesystem)
+	withoutRootCatchAll := measureRun(t, false, filesystem)
+
+	t.Logf("large repo run with `.*: exists:0`: %s", withRootCatchAll)
+	t.Logf("large repo run without `.*: exists:0`: %s", withoutRootCatchAll)
+
+	if withoutRootCatchAll > 0 {
+		ratio := float64(withRootCatchAll) / float64(withoutRootCatchAll)
+		t.Logf("large repo performance ratio (with catch-all / without): %.2fx", ratio)
+		if ratio > maxPerformanceRegressionRatio {
+			t.Fatalf("expected root catch-all config to stay within %.2fx of baseline, got %.2fx", maxPerformanceRegressionRatio, ratio)
+		}
+	}
+}
+
+func assertErrorHasRule(t *testing.T, errors []*rule.Error, path string, ext string, ruleName string) {
+	t.Helper()
+
+	for _, lintErr := range errors {
+		if lintErr.GetPath() != path || lintErr.GetExt() != ext {
+			continue
+		}
+
+		for _, tmpRule := range lintErr.GetRules() {
+			if tmpRule.GetName() == ruleName {
+				return
+			}
+		}
+
+		t.Fatalf("found error for path=%s ext=%s, but rule=%s was missing: %+v", path, ext, ruleName, lintErr.GetRules())
+	}
+
+	t.Fatalf("missing expected lint error path=%s ext=%s rule=%s. actual=%+v", path, ext, ruleName, errors)
 }

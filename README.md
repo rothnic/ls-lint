@@ -51,13 +51,223 @@ ls:
       .*: exists:0
       .test.ts: regex:${1}
 
+  packages:
+    .dir: exists
+  packages/*:
+    .dir: kebab-case | exists:1
+    AGENTS.md: exists:1
+
 ignore:
   - node_modules
 ```
 
+`exists` controls count constraints for matching entries in scope:
+
+- `exists:0` - must not exist (exactly zero matches)
+- `exists:1` - must exist exactly once
+- `exists:1-4` - must exist within a range
+- `exists` - shorthand for at least one match (`exists:1-32767`)
+
+You can also apply `exists` to an explicit file key:
+
+```yaml
+ls:
+  packages/*:
+    AGENTS.md: exists:1
+```
+
+You can also apply `exists` to an explicit directory key:
+
+```yaml
+ls:
+  packages/*:
+    src: exists:1
+```
+
+### Monorepo TypeScript/Next.js style example
+
+For a full end-to-end example, see
+[`examples/nextjs_typescript_monorepo/.ls-lint.yml`](examples/nextjs_typescript_monorepo/.ls-lint.yml).
+
+```yaml
+ls:
+  .dir: kebab-case
+  .md: kebab-case | regex:^(README|AGENTS|CLAUDE|GEMINI)$
+  .*: exists:0
+  .json: regex:^(package|turbo)$
+  .*.json: regex:^tsconfig\.base$
+  .yaml: regex:^pnpm-workspace$
+
+  package.json: exists:1
+  pnpm-workspace.yaml: exists:1
+  turbo.json: exists:0-1
+  tsconfig.base.json: exists:0-1
+  README.md: exists:0-1
+  AGENTS.md: exists:0-1
+  CLAUDE.md: exists:0-1
+  GEMINI.md: exists:0-1
+
+  packages/*:
+    .dir: kebab-case
+    .md: regex:^(AGENTS|README|CLAUDE|GEMINI)$
+    .ts: camelCase | PascalCase
+    .tsx: camelCase | PascalCase
+    .js: camelCase | PascalCase
+    .jsx: camelCase | PascalCase
+    AGENTS.md: exists:1
+    README.md: exists:1
+    src: exists:1
+
+  packages/ui/src/components:
+    .dir: kebab-case | exists
+    .tsx: exists:0
+
+  packages/ui/src/components/*:
+    .tsx: regex:${0} | exists:1
+    .test.tsx: regex:${0} | exists:1
+
+ignore:
+  - node_modules
+  - .next
+  - coverage
+  - dist
+  - build
+  - packages/ui/dist
+  - .env*
+  - **/.env*
+```
+
+This example shows how to:
+
+- apply global defaults such as `kebab-case` markdown and directory names
+- fail closed for unapproved root file types with `.*: exists:0`, then whitelist
+  only the root config files you want
+- whitelist root-level config files like `package.json`, `pnpm-workspace.yaml`,
+  `turbo.json`, and `tsconfig.base.json`
+- allow special root markdown files like `README.md`, `AGENTS.md`, `CLAUDE.md`,
+  and `GEMINI.md` without weakening the default `.md: kebab-case` rule
+- apply default `camelCase | PascalCase` naming to package TypeScript/JavaScript files
+- ignore local `.env*` files and generated build output instead of encoding them in
+  the structural policy
+- keep `ignore:` explicit for ls-lint-specific structural skips; ls-lint does not
+  currently read `.gitignore`
+- ignore generated build output directories completely
+- require `AGENTS.md`, `README.md`, and `src` inside each package
+- enforce folder-based UI components with paired component/test naming
+
+This relies on explicit basename `exists` keys (for example
+`package.json: exists:1`, `README.md: exists:1`, and `src: exists:1`), which are
+required for this exact policy shape.
+
+`exists:0-1` is the correct way to express “optional, but at most one”.
+
+Matched files can also validate lightweight content structure with `content`:
+
+- `content:max-lines:<n>` - maximum number of lines
+- `content:max-line-length:<n>` - maximum line length in runes
+- `content:heading:<regex>` - require at least one matching heading line
+- `content:front-matter:required` - require YAML front matter at the top of the file
+
+```yaml
+ls:
+  docs:
+    .md: kebab-case | content:max-lines:250 | content:heading:^## Overview$ | content:front-matter:required
+```
+
+To keep a repeated content rule set concise across several extensions, you can
+define reusable rule groups once and reference them from `ls:`. You can reference a
+group with either `group:<name>` or the compact `@<name>` form. Groups can also
+reuse other groups to avoid repeating shared naming rules:
+
+```yaml
+groups:
+  js-names: "camelCase | PascalCase"
+  js-defaults:
+    - "@js-names"
+    - content:max-lines:400
+  js-large:
+    - "@js-names"
+    - content:max-lines:800
+
+ls:
+  .js: "@js-defaults"
+  .jsx: "@js-defaults"
+  .ts: "@js-defaults"
+  .tsx: "@js-defaults"
+
+  generated:
+    .js: "@js-large"
+    .jsx: "@js-large"
+    .ts: "@js-large"
+    .tsx: "@js-large"
+```
+
+This keeps the grouped rules in a dedicated namespace instead of relying on YAML
+anchors. More specific path blocks replace the parent scope for matching files,
+so to override only the content rule in a subtree you point that subtree at a
+different group with the same naming rules and a different `content:*`
+directive. If you want to drop the content rule entirely, point it at a
+naming-only group instead. The `@` shorthand works in both `ls:` entries and
+inside group definitions when you want to build on top of another group.
+
+Each rule group can be written as a YAML list (preferred for readability) or as
+the same pipe-delimited string syntax used inline elsewhere.
+
+For a fuller JavaScript/TypeScript example with shared defaults, stricter
+overrides, and a path that disables the `max-lines` check, see
+[`examples/reusable_content_rule_sets/.ls-lint.yml`](examples/reusable_content_rule_sets/.ls-lint.yml).
+
+Rules can also add optional feedback with `=>`, and configs can define optional
+`contexts:` selected with `--context`:
+
+```yaml
+ls:
+  .png: snake_case => PNG files must use snake_case before pushing
+
+contexts:
+  pre-commit:
+    mode: warn
+    message: Commit is not blocked. Treat these failures as warnings.
+```
+
+This keeps one structural policy while varying stage-specific guidance, and the
+selected context can also carry its own warn/fail default. See
+[`docs/reference/context-policies.md`](docs/reference/context-policies.md) for
+structured context fields and hook examples, and
+[`docs/reference/future-content-rules.md`](docs/reference/future-content-rules.md)
+for forward-looking notation notes.
+
 ### Result
 
 <img src="https://i.imgur.com/pxXkYcl.gif" alt="command" width="600">
+
+## Building and installing from this branch
+
+To use this branch locally in place of an upstream release, build and install the binary with the standard Go toolchain (Go 1.21+):
+
+```bash
+# Clone the branch
+git clone -b copilot/featureagent-constraints-feedback https://github.com/rothnic/ls-lint
+cd ls-lint
+
+# Build and install to $GOPATH/bin (or $GOBIN)
+go install ./cmd/ls_lint/...
+```
+
+The installed binary is named `ls_lint`. Verify it is on your `PATH`:
+
+```bash
+ls_lint --version
+```
+
+If you want a one-off binary without touching `$GOPATH/bin`:
+
+```bash
+go build -o ls-lint ./cmd/ls_lint/...
+./ls-lint --config .ls-lint.yml
+```
+
+To use `groups:`, `content:*` rules, `=> message` feedback, and `--context` in a project, drop a `.ls-lint.yml` at the project root and run `ls-lint` (or `ls_lint`) from there. See the `examples/` directory for ready-to-use configurations.
 
 ## Logo
 

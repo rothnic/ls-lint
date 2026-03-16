@@ -1,0 +1,60 @@
+# Example: reusable groups with per-rule failure messages.
+#
+# Groups are defined once and referenced with the compact @ shorthand. Each
+# group member can carry a `=> "..."` annotation to give reviewers a specific
+# action-oriented message when the rule fires instead of the bare rule name.
+#
+# All features shown here are available: group references, @ shorthand,
+# content rules, and per-rule messages.
+#
+# Groups are defined once and referenced with the compact @ shorthand. Each
+# group member can carry a `=> "..."` annotation to give reviewers a specific
+# action-oriented message when the rule fires instead of the bare rule name.
+
+groups:
+  # js-names: shared naming policy reused by every other group below.
+  js-names: "camelCase | PascalCase"
+
+  # js-defaults: standard application code — named correctly and short enough
+  # to be easily navigated in a code review.
+  js-defaults:
+    - "@js-names"
+    - "content:max-lines:400 => 'File exceeds 400 lines. Split into focused modules to keep reviews manageable.'"
+
+  # js-large: allowed for generated or data-heavy files, but still bounded.
+  js-large:
+    - "@js-names"
+    - "content:max-lines:800 => 'File exceeds 800 lines. This is the relaxed limit for generated or data-heavy files.'"
+
+  # md-docs: documentation policy with structural requirements.
+  md-docs:
+    - "kebab-case"
+    - "content:max-lines:250 => 'Doc exceeds 250 lines. Break into sub-pages or move reference content to a separate file.'"
+    - "content:heading:^## Overview$ => 'Every doc must start with a ## Overview section.'"
+
+ls:
+  # Application source.
+  .js: "@js-defaults"
+  .jsx: "@js-defaults"
+  .ts: "@js-defaults"
+  .tsx: "@js-defaults"
+
+  # Documentation.
+  .md: "@md-docs"
+
+  # Generated code uses the relaxed limit.
+  generated:
+    .js: "@js-large"
+    .ts: "@js-large"
+
+  # Vendor code keeps naming rules only; no line limit.
+  vendor:
+    .js: "@js-names"
+    .ts: "@js-names"
+
+ignore:
+  - node_modules
+  - dist
+  - coverage
+  - .next
+  - build
