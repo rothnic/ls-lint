@@ -7,6 +7,7 @@ go_library(
         "content.go",
         "error.go",
         "exists.go",
+        "feedback.go",
         "kebabcase.go",
         "lowercase.go",
         "pascalcase.go",

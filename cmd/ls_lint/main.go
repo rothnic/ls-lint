@@ -8,7 +8,6 @@ import (
 	"maps"
 	"os"
 	"runtime"
-	"slices"
 	"strings"
 
 	"github.com/loeffel-io/ls-lint/v2/internal/config"
@@ -28,7 +27,8 @@ func main() {
 	flags := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 	flagWorkdir := flags.String("workdir", ".", "change working directory before executing the given subcommand")
 	flagErrorOutputFormat := flags.String("error-output-format", "text", "use a specific error output format (text, json)")
-	flagWarn := flags.Bool("warn", false, "write lint errors to stdout instead of stderr (exit 0)")
+	flagContext := flags.String("context", "", "apply an optional config context such as pre-commit, pre-push, or pre-merge")
+	flagWarn := flags.Bool("warn", false, "write lint errors to stdout instead of stderr (exit 0); explicit --warn or --warn=false overrides context mode")
 	flagDebug := flags.Bool("debug", false, "write debug informations to stdout")
 	flagVersion := flags.Bool("version", false, "prints version information for ls-lint")
 
@@ -70,6 +70,9 @@ func main() {
 	}
 
 	lslintConfig := config.NewConfig(make(config.Ls), make([]string, 0))
+	contextFound := *flagContext == ""
+	selectedContext := config.Context{}
+	warnExplicit := wasFlagProvided(flags, "warn")
 	for _, c := range flagConfig {
 		tmpLslintConfig := config.NewConfig(nil, nil)
 		var tmpConfigBytes []byte
@@ -82,12 +85,24 @@ func main() {
 			log.Fatal(err)
 		}
 
+		if *flagContext != "" {
+			if context, found := tmpLslintConfig.GetContext(*flagContext); found {
+				contextFound = true
+				selectedContext = context
+			}
+		}
+
 		maps.Copy(lslintConfig.GetLs(), tmpLslintConfig.GetLs())
 		lslintConfig.MergeRuleGroups(tmpLslintConfig.GetRuleGroups())
-		lslintConfig.Ignore = append(lslintConfig.Ignore, tmpLslintConfig.GetIgnore()...)
-		slices.Sort(lslintConfig.Ignore)
-		lslintConfig.Ignore = slices.Compact(lslintConfig.Ignore)
+		lslintConfig.Ignore = config.MergeIgnore(lslintConfig.Ignore, tmpLslintConfig.GetIgnore())
 	}
+
+	if *flagContext != "" && !contextFound {
+		log.Fatalf("context %q does not exist in the provided config file(s)", *flagContext)
+	}
+
+	contextMessage := selectedContext.GetMessage(*flagContext)
+	warn := resolveWarn(*flagWarn, warnExplicit, selectedContext)
 
 	lslintLinter := linter.NewLinter(
 		".",
@@ -106,7 +121,7 @@ func main() {
 		os.Exit(exitCode)
 	}
 
-	if !*flagWarn {
+	if !warn {
 		writer = os.Stderr
 		exitCode = 1
 	}
@@ -115,6 +130,11 @@ func main() {
 	case "json":
 		errIndex := make(map[string]map[string][]string, len(lslintLinter.GetErrors()))
 		for _, ruleErr := range lslintLinter.GetErrors() {
+			ruleMessages := getRuleMessages(ruleErr, contextMessage)
+			if len(ruleMessages) == 0 {
+				continue
+			}
+
 			path := ruleErr.GetPath()
 			if path == "" {
 				path = "."
@@ -124,13 +144,7 @@ func main() {
 				errIndex[path] = make(map[string][]string)
 			}
 
-			for _, errRule := range ruleErr.GetRules() {
-				if !ruleErr.IsDir() && errRule.GetName() == "exists" {
-					continue
-				}
-
-				errIndex[path][ruleErr.GetExt()] = append(errIndex[path][ruleErr.GetExt()], errRule.GetErrorMessage())
-			}
+			errIndex[path][ruleErr.GetExt()] = append(errIndex[path][ruleErr.GetExt()], ruleMessages...)
 		}
 
 		var jsonStr []byte
@@ -143,19 +157,14 @@ func main() {
 		}
 	default:
 		for _, ruleErr := range lslintLinter.GetErrors() {
-			var ruleMessages []string
+			ruleMessages := getRuleMessages(ruleErr, contextMessage)
+			if len(ruleMessages) == 0 {
+				continue
+			}
 
 			path := ruleErr.GetPath()
 			if path == "" {
 				path = "."
-			}
-
-			for _, errRule := range ruleErr.GetRules() {
-				if !ruleErr.IsDir() && errRule.GetName() == "exists" {
-					continue
-				}
-
-				ruleMessages = append(ruleMessages, errRule.GetErrorMessage())
 			}
 
 			if _, err = fmt.Fprintf(writer, "%s failed for `%s` rules: %s\n", path, ruleErr.GetExt(), strings.Join(ruleMessages, " | ")); err != nil {
@@ -165,4 +174,41 @@ func main() {
 	}
 
 	os.Exit(exitCode)
+}
+
+func getRuleMessages(ruleErr *rule.Error, contextMessage string) []string {
+	rules := ruleErr.GetRules()
+	ruleMessages := make([]string, 0, len(rules))
+	for _, errRule := range rules {
+		if !ruleErr.IsDir() && errRule.GetName() == "exists" {
+			continue
+		}
+
+		ruleMessages = append(ruleMessages, errRule.GetErrorMessage())
+	}
+
+	if contextMessage != "" && len(ruleMessages) > 0 {
+		ruleMessages = append([]string{contextMessage}, ruleMessages...)
+	}
+
+	return ruleMessages
+}
+
+func wasFlagProvided(flags *flag.FlagSet, name string) bool {
+	provided := false
+	flags.Visit(func(flag *flag.Flag) {
+		if flag.Name == name {
+			provided = true
+		}
+	})
+
+	return provided
+}
+
+func resolveWarn(warnEnabled bool, warnExplicit bool, selectedContext config.Context) bool {
+	if warnExplicit {
+		return warnEnabled
+	}
+
+	return warnEnabled || selectedContext.ShouldWarn()
 }

@@ -8,6 +8,7 @@ go_library(
     deps = [
         "//internal/rule",
         "@com_github_bmatcuk_doublestar_v4//:doublestar",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
 
