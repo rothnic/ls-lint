@@ -17,31 +17,86 @@
 # ---------------------------------------------------------------------------
 
 groups:
-  # Base naming convention for TypeScript source files.
-  ts-names:
-    - "camelCase => Use camelCase for most TypeScript source files."
-    - "PascalCase => Use PascalCase when the file's primary export is a component, class, or type."
+  # ---------------------------------------------------------------------------
+  # Naming groups (used individually for directories that enforce one convention)
+  # ---------------------------------------------------------------------------
 
-  # Standard application code: well-named and short enough to review easily.
+  # camelCase: services, utilities, hooks, and general source modules.
+  ts-camel: "camelCase => Default for services, utilities, and hooks. If this file's primary export is a class, component, or named type, rename it in PascalCase and move it to the appropriate directory."
+
+  # PascalCase: components, classes, and named types.
+  ts-pascal: "PascalCase => For files whose primary export is a component, class, or shared named type. If this is a utility or service, rename it in camelCase and move it to the appropriate directory."
+
+  # Combined: directories that accept either convention (most common).
+  # No per-rule messages here — the rule names are self-documenting, and specific
+  # directories use ts-camel or ts-pascal above to give targeted guidance.
+  ts-names: "camelCase | PascalCase"
+
+  # ---------------------------------------------------------------------------
+  # Size groups (composable — combine with naming via @group | @group in ls: values)
+  # ---------------------------------------------------------------------------
+
+  # Standard application code: 400 lines.
+  size-standard:
+    - "content:max-lines:400 => File exceeds 400 lines. Run scripts/analyze-ts-structure.sh on this file to get a list of its exports, classes, and functions, then split it into focused modules of under 400 lines each. See AGENTS.md for the split approach and examples. Override requires explicit repository owner approval — do not modify .ls-lint.yml without that approval."
+
+  # Test files: 600 lines before splitting is required.
+  size-large:
+    - "content:max-lines:600 => File exceeds 600 lines. Split into focused test modules, one per concern or component under test. Run scripts/analyze-ts-structure.sh to identify test suite boundaries. Override requires explicit repository owner approval."
+
+  # Generated output: capped at 2000 lines but not expected to be manually reviewed.
+  size-relaxed:
+    - "content:max-lines:2000 => Generated file exceeds 2000 lines. Investigate the generator configuration or split the output. Override requires explicit repository owner approval."
+
+  # ---------------------------------------------------------------------------
+  # Composite groups: naming + size, used as defaults for most source paths
+  # ---------------------------------------------------------------------------
+
+  # Standard application source: camelCase | PascalCase + 400-line cap.
   ts-defaults:
     - "@ts-names"
-    - "content:max-lines:400 => Keep files under 400 lines. Extract shared logic into separate modules when this limit is reached."
+    - "@size-standard"
 
-  # Generated code may be larger, but we still cap it.
-  ts-generated:
-    - "@ts-names"
-    - "content:max-lines:2000 => Generated files may be large, but flag anything exceeding 2000 lines for review."
-
-  # Test files can be longer since they often contain many test cases.
+  # Test files: naming conventions + 600-line cap.
   ts-tests:
     - "@ts-names"
-    - "content:max-lines:600 => Test files may be up to 600 lines. If longer, split into focused test modules."
+    - "@size-large"
 
-  # Documentation pages: kebab-case names, bounded length, required headings.
+  # Generated output: naming + 2000-line cap.
+  ts-generated:
+    - "@ts-names"
+    - "@size-relaxed"
+
+  # ---------------------------------------------------------------------------
+  # Documentation groups
+  # ---------------------------------------------------------------------------
+
+  # Standard documentation page.
+  #
+  # Naming: kebab-case is required for page files. AGENTS.md, README.md, and
+  # CHANGELOG.md are exempt via the regex alternative.
+  #
+  # Content limits: 500 lines is the working limit. Docs written by agents
+  # reliably become harder to maintain above this length. When a page exceeds
+  # the limit, convert it into a directory with focused section files (see
+  # AGENTS.md for the recommended folder structure). For template files or
+  # exhaustive reference tables that cannot be split, place them in
+  # docs/templates/ where a 2000-line limit applies and front matter is not
+  # required.
+  #
+  # Front matter is required because it powers navigation index generation,
+  # link previews, and reliable context loading when an agent searches docs.
   doc-page:
-    - "kebab-case => Documentation pages must use kebab-case filenames."
-    - "content:max-lines:300 => Keep docs under 300 lines. Split long docs into focused sub-pages."
-    - "content:front-matter:required => Docs require YAML front matter (at minimum: title and description)."
+    - "kebab-case"
+    - "regex:^(README|AGENTS|CHANGELOG)$"
+    - "content:max-lines:500 => Documentation page exceeds 500 lines. Convert it into a directory with focused section files (see AGENTS.md for the split pattern). If this is a template or exhaustive reference that cannot be split, move it to docs/templates/ where a 2000-line limit applies."
+    - "content:front-matter:required => Missing YAML front matter. Add at minimum: title (short page title used in navigation) and description (one-sentence summary used in link previews and agent context loading). See AGENTS.md for the full front-matter schema and description-writing guidance."
+
+  # Relaxed docs: templates, exhaustive reference tables, generated docs.
+  doc-templates:
+    - "kebab-case"
+    - "regex:^(README|AGENTS|CHANGELOG)$"
+    - "content:max-lines:2000 => Template or reference file exceeds 2000 lines. Consider whether sections can be extracted. Override requires explicit repository owner approval."
 
 # ---------------------------------------------------------------------------
 # File and directory naming rules
@@ -51,81 +106,88 @@ ls:
   # All directories use kebab-case.
   .dir: kebab-case
 
-  # Source files: TypeScript and JavaScript.
+  # Source files: TypeScript and JavaScript — either convention allowed.
+  # Specific subdirectories below enforce a single convention where appropriate.
   .ts: "@ts-defaults"
   .tsx: "@ts-defaults"
   .js: camelCase | PascalCase
   .jsx: camelCase | PascalCase
 
+  # Test files: colocated next to source files (Vitest / Jest best practice).
+  # The ts-tests group allows a slightly relaxed size limit for test suites.
+  # If your project uses a centralised __tests__/ directory instead, remove these
+  # root-level entries and add them only under src/__tests__.
+  .test.ts: "@ts-tests"
+  .test.tsx: "@ts-tests"
+  .spec.ts: "@ts-tests"
+  .spec.tsx: "@ts-tests"
+
   # Declaration files follow the same naming as the source file they augment.
   .d.ts: camelCase | PascalCase
 
-  # Style files: kebab-case is standard for CSS/SCSS module filenames.
+  # Style files: kebab-case is the community standard for CSS/SCSS modules.
   .css: kebab-case
   .scss: kebab-case
   .module.css: kebab-case
   .module.scss: kebab-case
 
-  # Configuration and workspace files: lowercase or kebab-case.
+  # Configuration files: allow known tool-specific basenames or kebab-case.
   .json: kebab-case | camelCase | regex:^(package|tsconfig|jest\.config|vite\.config|eslint\.config)$
   .yaml: kebab-case
   .yml: kebab-case
 
-  # Markdown documentation: kebab-case with structure requirements.
-  .md: "@doc-page"
+  # Root-level markdown: naming check only. Content rules (max-lines, front-matter)
+  # apply only inside docs/ where structure is explicitly enforced.
+  .md: "kebab-case | regex:^(README|AGENTS|CHANGELOG)$"
 
-  # Root-level coordination docs: exactly one copy allowed.
-  README.md: "exists:0-1 => Provide a root README.md to describe the project."
-  AGENTS.md: "exists:0-1 => Provide AGENTS.md for agent-specific guidance when needed."
+  # Root-level coordination docs: require exactly one of each.
+  README.md: "exists:1 => Add a root README.md describing the project purpose, quick-start instructions, and links to key documentation."
+  AGENTS.md: "exists:1 => Add AGENTS.md with guidance for AI agents operating in this repository. See AGENTS.md in examples/typescript_best_practices/ for a template."
 
-  # Source directory: strict naming + size policy.
-  src:
-    .dir: kebab-case
-    .ts: "@ts-defaults"
-    .tsx: "@ts-defaults"
-    .js: camelCase | PascalCase
-    .jsx: camelCase | PascalCase
+  # src/ is intentionally NOT defined here so root rules apply to files
+  # directly inside src/ via ls-lint path fallback. Only subdirectories that
+  # need a DIFFERENT convention from root defaults appear below.
 
-  # Test files: allow longer files for comprehensive test suites.
-  src/__tests__:
-    .ts: "@ts-tests"
-    .tsx: "@ts-tests"
-    .test.ts: "@ts-tests"
-    .spec.ts: "@ts-tests"
-
-  # Components: PascalCase convention, one component per file.
+  # Components: always PascalCase; compose naming + size via @group | @group.
   src/components:
     .dir: kebab-case | PascalCase
-    .tsx: PascalCase
-    .ts: PascalCase
+    .tsx: "@ts-pascal | @size-standard"
+    .ts: "@ts-pascal | @size-standard"
 
-  # Hooks: must start with "use" prefix (camelCase, typically starts with lowercase "use").
+  # Hooks: always camelCase (React convention: names begin with "use").
   src/hooks:
-    .ts: camelCase
-    .tsx: camelCase
+    .ts: "@ts-camel | @size-standard"
+    .tsx: "@ts-camel | @size-standard"
 
-  # Utilities: camelCase for utility functions.
+  # Utilities: always camelCase.
   src/utils:
-    .ts: camelCase
-    .tsx: camelCase
+    .ts: "@ts-camel | @size-standard"
+    .tsx: "@ts-camel | @size-standard"
 
-  # Types: can be camelCase or PascalCase.
+  # Types: PascalCase for named types and interfaces.
   src/types:
-    .ts: camelCase | PascalCase
+    .ts: "@ts-pascal | @size-standard"
 
-  # Generated code: relaxed size limit.
+  # API / service layer: always camelCase.
+  src/api:
+    .ts: "@ts-camel | @size-standard"
+    .tsx: "@ts-camel | @size-standard"
+
+  # Generated output: larger files accepted; enforced by ts-generated group.
   src/generated:
     .ts: "@ts-generated"
     .js: "@ts-generated"
 
-  # API / service layer: camelCase.
-  src/api:
-    .ts: camelCase
-    .tsx: camelCase
-
-  # Documentation directory.
+  # Documentation directory: enforce full doc-page rules (naming + content).
+  # This is intentionally different from the root .md rule above, which is naming-only.
+  # AGENTS.md and README.md are allowed in any docs subdirectory and are exempt
+  # from front-matter and max-lines checks via the regex rule inside @doc-page.
   docs:
     .md: "@doc-page"
+
+  # Templates and exhaustive reference docs: relaxed size, no front-matter required.
+  docs/templates:
+    .md: "@doc-templates"
 
 # ---------------------------------------------------------------------------
 # Context directives
@@ -141,7 +203,8 @@ contexts:
     environment: local
     message: >
       Commit is not blocked. These are early warnings about naming conventions
-      and file size. Queue any quick cleanup before pushing.
+      and file size. Queue any quick cleanup before pushing. Run
+      scripts/analyze-ts-structure.sh on oversized files to identify split points.
 
   pre-push:
     mode: fail
@@ -149,17 +212,21 @@ contexts:
     environment: local
     override: repository owner approval
     references:
+      - AGENTS.md
       - docs/contributing.md
     message: >
       Push is blocked until these naming and structure requirements are
-      resolved. See docs/contributing.md for guidance, or request approval
-      from the repository owner to override.
+      resolved. See AGENTS.md for the override process and split guidelines.
+      Agents must not modify .ls-lint.yml or bypass lint configuration without
+      explicit repository owner approval.
 
 # ---------------------------------------------------------------------------
 # Ignore patterns
 #
-# ls-lint does not read .gitignore automatically. Exclude generated output
-# and dependency directories explicitly here.
+# ls-lint does not read .gitignore automatically. Be precise: only ignore
+# files that genuinely should not be linted. In particular, do NOT ignore
+# .env.example or .env.sample — those files should be committed and linted.
+# Only ignore environment override files that must never be committed.
 # ---------------------------------------------------------------------------
 
 ignore:
@@ -170,5 +237,8 @@ ignore:
   - .next
   - out
   - .turbo
-  - "**/.env*"
+  - .env.local
+  - .env.*.local
+  - "**/.env.local"
+  - "**/.env.*.local"
   - "**/*.min.js"
