@@ -16,7 +16,10 @@ go_library(
 
 go_test(
     name = "linter_test",
-    srcs = ["linter_test.go"],
+    srcs = [
+        "linter_benchmark_test.go",
+        "linter_test.go",
+    ],
     embed = [":linter"],
     race = select({
         "//:darwin_arm64": "on",
