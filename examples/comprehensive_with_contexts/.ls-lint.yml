@@ -1,7 +1,7 @@
 # Comprehensive example: groups, per-rule messages, and context directives.
 #
 # This config demonstrates the full integrated syntax:
-#   - `groups:` / `rule-groups:` for reusable rule sets
+#   - `groups:` for reusable rule sets
 #   - `@<name>` shorthand for group references
 #   - `content:*` validation rules
 #   - `=> "message"` per-rule failure messages

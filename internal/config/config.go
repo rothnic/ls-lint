@@ -37,11 +37,10 @@ const (
 )
 
 type Config struct {
-	Ls         Ls                     `yaml:"ls"`
-	RuleGroups map[string]interface{} `yaml:"rule-groups"`
-	Groups     map[string]interface{} `yaml:"groups"`
-	Ignore     []string               `yaml:"ignore"`
-	Contexts   map[string]Context     `yaml:"contexts"`
+	Ls       Ls                     `yaml:"ls"`
+	Groups   map[string]interface{} `yaml:"groups"`
+	Ignore   []string               `yaml:"ignore"`
+	Contexts map[string]Context     `yaml:"contexts"`
 	*sync.RWMutex
 }
 
@@ -57,11 +56,10 @@ type Context struct {
 
 func NewConfig(ls Ls, ignore []string) *Config {
 	return &Config{
-		Ls:         ls,
-		RuleGroups: make(map[string]interface{}),
-		Groups:     make(map[string]interface{}),
-		Ignore:     ignore,
-		RWMutex:    new(sync.RWMutex),
+		Ls:      ls,
+		Groups:  make(map[string]interface{}),
+		Ignore:  ignore,
+		RWMutex: new(sync.RWMutex),
 	}
 }
 
@@ -83,11 +81,7 @@ func (config *Config) GetRuleGroups() map[string]interface{} {
 	config.RLock()
 	defer config.RUnlock()
 
-	ruleGroups := make(map[string]interface{}, len(config.RuleGroups)+len(config.Groups))
-	for key, value := range config.RuleGroups {
-		ruleGroups[key] = cloneRuleGroupValue(value)
-	}
-
+	ruleGroups := make(map[string]interface{}, len(config.Groups))
 	for key, value := range config.Groups {
 		ruleGroups[key] = cloneRuleGroupValue(value)
 	}
@@ -99,12 +93,12 @@ func (config *Config) MergeRuleGroups(ruleGroups map[string]interface{}) {
 	config.Lock()
 	defer config.Unlock()
 
-	if config.RuleGroups == nil {
-		config.RuleGroups = make(map[string]interface{})
+	if config.Groups == nil {
+		config.Groups = make(map[string]interface{})
 	}
 
 	for key, value := range ruleGroups {
-		config.RuleGroups[key] = cloneRuleGroupValue(value)
+		config.Groups[key] = cloneRuleGroupValue(value)
 	}
 }
 

@@ -497,7 +497,7 @@ func TestGetIndex_InvalidContentRule(t *testing.T) {
 
 func TestConfigYAMLRuleGroupsForSharedRuleSets(t *testing.T) {
 	configYAML := []byte(
-		"\nrule-groups:\n" +
+		"\ngroups:\n" +
 			"  jsTsDefault:\n" +
 			"    - camelCase\n" +
 			"    - PascalCase\n" +
@@ -505,7 +505,6 @@ func TestConfigYAMLRuleGroupsForSharedRuleSets(t *testing.T) {
 			"  jsTsRelaxed:\n" +
 			"    - camelCase\n" +
 			"    - PascalCase\n" +
-			"groups:\n" +
 			"  jsTsNames: \"camelCase | PascalCase\"\n" +
 			"ls:\n" +
 			"  .js: group:jsTsDefault\n" +
@@ -597,7 +596,7 @@ func TestGetIndex_StringRuleGroup(t *testing.T) {
 	config := NewConfig(Ls{
 		".ts": "group:jsTsDefault",
 	}, nil)
-	config.RuleGroups["jsTsDefault"] = "camelCase | content:max-lines:4"
+	config.Groups["jsTsDefault"] = "camelCase | content:max-lines:4"
 
 	index, err := config.GetIndex(config.GetLs())
 	if err != nil {
@@ -620,7 +619,7 @@ func TestGetIndex_SliceRuleGroup(t *testing.T) {
 	config := NewConfig(Ls{
 		".ts": "group:jsTsDefault",
 	}, nil)
-	config.RuleGroups["jsTsDefault"] = []string{"camelCase", "content:max-lines:4"}
+	config.Groups["jsTsDefault"] = []string{"camelCase", "content:max-lines:4"}
 
 	index, err := config.GetIndex(config.GetLs())
 	if err != nil {
@@ -665,8 +664,8 @@ func TestGetIndex_CircularRuleGroup(t *testing.T) {
 	config := NewConfig(Ls{
 		".ts": "group:groupA",
 	}, nil)
-	config.RuleGroups["groupA"] = []string{"group:groupB"}
-	config.RuleGroups["groupB"] = []string{"group:groupA"}
+	config.Groups["groupA"] = []string{"group:groupB"}
+	config.Groups["groupB"] = []string{"group:groupA"}
 
 	_, err := config.GetIndex(config.GetLs())
 	if err == nil || err.Error() != `circular reference detected in rule group "groupA"` {
@@ -706,7 +705,7 @@ func TestGetIndex_InvalidRuleGroupValue(t *testing.T) {
 		config := NewConfig(Ls{
 			".ts": "group:groupA",
 		}, nil)
-		config.RuleGroups["groupA"] = test.groupValue
+		config.Groups["groupA"] = test.groupValue
 
 		_, err := config.GetIndex(config.GetLs())
 		if err == nil || err.Error() != test.expectedErr {

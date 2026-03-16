@@ -1503,8 +1503,8 @@ func TestLinter_Run_ContentRules(t *testing.T) {
 						".ts": "group:jsTsNamingOnly",
 					},
 				}, nil)
-				config.RuleGroups["jsTsDefault"] = []string{"camelCase", "content:max-lines:2"}
-				config.RuleGroups["jsTsNamingOnly"] = []string{"camelCase"}
+				config.Groups["jsTsDefault"] = []string{"camelCase", "content:max-lines:2"}
+				config.Groups["jsTsNamingOnly"] = []string{"camelCase"}
 				return config
 			}(),
 			expectedPath: "src/core/mainFile.ts",

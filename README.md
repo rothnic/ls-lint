@@ -175,8 +175,7 @@ ls:
 ```
 
 To keep a repeated content rule set concise across several extensions, you can
-define reusable rule groups once and reference them from `ls:`. The shorter
-`groups:` alias is supported alongside `rule-groups:`, and you can reference a
+define reusable rule groups once and reference them from `ls:`. You can reference a
 group with either `group:<name>` or the compact `@<name>` form. Groups can also
 reuse other groups to avoid repeating shared naming rules:
 
@@ -241,6 +240,34 @@ for forward-looking notation notes.
 ### Result
 
 <img src="https://i.imgur.com/pxXkYcl.gif" alt="command" width="600">
+
+## Building and installing from this branch
+
+To use this branch locally in place of an upstream release, build and install the binary with the standard Go toolchain (Go 1.21+):
+
+```bash
+# Clone the branch
+git clone -b copilot/featureagent-constraints-feedback https://github.com/rothnic/ls-lint
+cd ls-lint
+
+# Build and install to $GOPATH/bin (or $GOBIN)
+go install ./cmd/ls_lint/...
+```
+
+The installed binary is named `ls_lint`. Verify it is on your `PATH`:
+
+```bash
+ls_lint --version
+```
+
+If you want a one-off binary without touching `$GOPATH/bin`:
+
+```bash
+go build -o ls-lint ./cmd/ls_lint/...
+./ls-lint --config .ls-lint.yml
+```
+
+To use `groups:`, `content:*` rules, `=> message` feedback, and `--context` in a project, drop a `.ls-lint.yml` at the project root and run `ls-lint` (or `ls_lint`) from there. See the `examples/` directory for ready-to-use configurations.
 
 ## Logo
 

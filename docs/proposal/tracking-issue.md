@@ -54,7 +54,7 @@ constraints become self-documenting.
    shared across all content rules for that file.
 3. **Correctness fix**: `content:front-matter:required` now rejects empty or
    whitespace-only front matter blocks.
-4. **First-class reusable rule groups**: top-level `groups:` / `rule-groups:`
+4. **First-class reusable rule groups**: top-level `groups:`
    namespace so shared rule sets are defined once and referenced with
    `group:<name>` or the compact `@<name>` shorthand. Groups can reuse other
    groups.
