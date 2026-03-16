@@ -43,7 +43,7 @@ constraints become self-documenting.
 
 ---
 
-### PR 2 — `copilot/implement-content-directive-validation`  *(this branch)*
+### PR 2 — `copilot/implement-content-directive-validation`
 
 **What it implements**
 

@@ -1,0 +1,174 @@
+# TypeScript Best Practices
+#
+# A practical baseline for any TypeScript project: single-package app,
+# library, or API server. Covers 90% of real-world TypeScript use cases.
+#
+# Features used:
+#   - groups:           reusable rule sets (available in this fork)
+#   - @<name>:          compact group reference shorthand
+#   - content:*:        file-level structural guardrails
+#   - => "message":     per-rule remediation guidance
+#   - contexts:         stage-aware enforcement (pre-commit warn, pre-push fail)
+#
+# To use with lefthook, see examples/lefthook_integration/lefthook.yml
+
+# ---------------------------------------------------------------------------
+# Reusable rule groups
+# ---------------------------------------------------------------------------
+
+groups:
+  # Base naming convention for TypeScript source files.
+  ts-names:
+    - "camelCase => Use camelCase for most TypeScript source files."
+    - "PascalCase => Use PascalCase when the file's primary export is a component, class, or type."
+
+  # Standard application code: well-named and short enough to review easily.
+  ts-defaults:
+    - "@ts-names"
+    - "content:max-lines:400 => Keep files under 400 lines. Extract shared logic into separate modules when this limit is reached."
+
+  # Generated code may be larger, but we still cap it.
+  ts-generated:
+    - "@ts-names"
+    - "content:max-lines:2000 => Generated files may be large, but flag anything exceeding 2000 lines for review."
+
+  # Test files can be longer since they often contain many test cases.
+  ts-tests:
+    - "@ts-names"
+    - "content:max-lines:600 => Test files may be up to 600 lines. If longer, split into focused test modules."
+
+  # Documentation pages: kebab-case names, bounded length, required headings.
+  doc-page:
+    - "kebab-case => Documentation pages must use kebab-case filenames."
+    - "content:max-lines:300 => Keep docs under 300 lines. Split long docs into focused sub-pages."
+    - "content:front-matter:required => Docs require YAML front matter (at minimum: title and description)."
+
+# ---------------------------------------------------------------------------
+# File and directory naming rules
+# ---------------------------------------------------------------------------
+
+ls:
+  # All directories use kebab-case.
+  .dir: kebab-case
+
+  # Source files: TypeScript and JavaScript.
+  .ts: "@ts-defaults"
+  .tsx: "@ts-defaults"
+  .js: camelCase | PascalCase
+  .jsx: camelCase | PascalCase
+
+  # Declaration files follow the same naming as the source file they augment.
+  .d.ts: camelCase | PascalCase
+
+  # Style files: kebab-case is standard for CSS/SCSS module filenames.
+  .css: kebab-case
+  .scss: kebab-case
+  .module.css: kebab-case
+  .module.scss: kebab-case
+
+  # Configuration and workspace files: lowercase or kebab-case.
+  .json: kebab-case | camelCase | regex:^(package|tsconfig|jest\.config|vite\.config|eslint\.config)$
+  .yaml: kebab-case
+  .yml: kebab-case
+
+  # Markdown documentation: kebab-case with structure requirements.
+  .md: "@doc-page"
+
+  # Root-level coordination docs: exactly one copy allowed.
+  README.md: "exists:0-1 => Provide a root README.md to describe the project."
+  AGENTS.md: "exists:0-1 => Provide AGENTS.md for agent-specific guidance when needed."
+
+  # Source directory: strict naming + size policy.
+  src:
+    .dir: kebab-case
+    .ts: "@ts-defaults"
+    .tsx: "@ts-defaults"
+    .js: camelCase | PascalCase
+    .jsx: camelCase | PascalCase
+
+  # Test files: allow longer files for comprehensive test suites.
+  src/__tests__:
+    .ts: "@ts-tests"
+    .tsx: "@ts-tests"
+    .test.ts: "@ts-tests"
+    .spec.ts: "@ts-tests"
+
+  # Components: PascalCase convention, one component per file.
+  src/components:
+    .dir: kebab-case | PascalCase
+    .tsx: PascalCase
+    .ts: PascalCase
+
+  # Hooks: must start with "use" prefix (camelCase, typically starts with lowercase "use").
+  src/hooks:
+    .ts: camelCase
+    .tsx: camelCase
+
+  # Utilities: camelCase for utility functions.
+  src/utils:
+    .ts: camelCase
+    .tsx: camelCase
+
+  # Types: can be camelCase or PascalCase.
+  src/types:
+    .ts: camelCase | PascalCase
+
+  # Generated code: relaxed size limit.
+  src/generated:
+    .ts: "@ts-generated"
+    .js: "@ts-generated"
+
+  # API / service layer: camelCase.
+  src/api:
+    .ts: camelCase
+    .tsx: camelCase
+
+  # Documentation directory.
+  docs:
+    .md: "@doc-page"
+
+# ---------------------------------------------------------------------------
+# Context directives
+#
+# These define stage-specific enforcement behavior. Select with --context.
+# Use with lefthook: see examples/lefthook_integration/lefthook.yml
+# ---------------------------------------------------------------------------
+
+contexts:
+  pre-commit:
+    mode: warn
+    hook: pre-commit
+    environment: local
+    message: >
+      Commit is not blocked. These are early warnings about naming conventions
+      and file size. Queue any quick cleanup before pushing.
+
+  pre-push:
+    mode: fail
+    hook: pre-push
+    environment: local
+    override: repository owner approval
+    references:
+      - docs/contributing.md
+    message: >
+      Push is blocked until these naming and structure requirements are
+      resolved. See docs/contributing.md for guidance, or request approval
+      from the repository owner to override.
+
+# ---------------------------------------------------------------------------
+# Ignore patterns
+#
+# ls-lint does not read .gitignore automatically. Exclude generated output
+# and dependency directories explicitly here.
+# ---------------------------------------------------------------------------
+
+ignore:
+  - node_modules
+  - dist
+  - build
+  - coverage
+  - .next
+  - out
+  - .turbo
+  - "**/.env*"
+  - "**/*.min.js"

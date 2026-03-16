@@ -1,9 +1,11 @@
 # Example: reusable groups with per-rule failure messages.
 #
-# This config requires the companion `=> message` PR to be merged before the
-# message strings on content rules take effect. The naming rules and group
-# expansion work today; the messages surface in violation output once the
-# message-annotation feature is available.
+# Groups are defined once and referenced with the compact @ shorthand. Each
+# group member can carry a `=> "..."` annotation to give reviewers a specific
+# action-oriented message when the rule fires instead of the bare rule name.
+#
+# All features shown here are available: group references, @ shorthand,
+# content rules, and per-rule messages.
 #
 # Groups are defined once and referenced with the compact @ shorthand. Each
 # group member can carry a `=> "..."` annotation to give reviewers a specific

@@ -1,0 +1,38 @@
+# Lefthook Integration with ls-lint Context Approach
+#
+# This lefthook.yml shows how to wire ls-lint into your git hooks using the
+# --context flag. Instead of configuring enforcement rules in lefthook, all
+# policy decisions live in .ls-lint.yml under the `contexts:` key.
+#
+# Benefits:
+#   - All repository policy in one place (.ls-lint.yml)
+#   - Context-specific behavior (warn on commit, fail on push)
+#   - Human-readable guidance embedded in the config
+#   - Easy to adjust without touching hook configuration
+#
+# Usage:
+#   1. Install lefthook: https://github.com/evilmartians/lefthook
+#   2. Copy this file to the root of your repository as `lefthook.yml`
+#   3. Run: lefthook install
+#
+# The --context flag selects a named context from your .ls-lint.yml `contexts:`
+# block. The selected context controls:
+#   - Whether failures are warnings or errors
+#   - The message shown when violations occur
+#   - Additional metadata like override and references
+
+pre-commit:
+  commands:
+    ls-lint:
+      run: ls-lint --context pre-commit
+      # `mode: warn` in the pre-commit context means violations print as
+      # warnings and the commit is not blocked. Remove --context to use
+      # the default (fail) behavior instead.
+
+pre-push:
+  commands:
+    ls-lint:
+      run: ls-lint --context pre-push
+      # `mode: fail` in the pre-push context means violations block the push.
+      # The violation output includes context metadata: override contact,
+      # reference docs, and the context summary message.
